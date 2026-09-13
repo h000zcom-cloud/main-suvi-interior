@@ -1,0 +1,163 @@
+/* Route-specific editorial compositions. */
+.route-section { padding-block: var(--section-y); }
+.route-prose { color: var(--muted-ink); font-size: .92rem; line-height: 1.9; }
+
+/* Studio / About */
+.about-story-section { background: var(--paper); }
+.about-story-grid { display: grid; gap: 2.5rem; }
+.about-story-copy { max-width: 42rem; }
+.about-philosophy-section { position: relative; overflow: hidden; color: #fff; background: #1a1714; }
+.about-philosophy-section::after { content: ""; position: absolute; right: -14rem; bottom: -20rem; width: 38rem; aspect-ratio: 1; border: 1px solid rgba(197,163,109,.15); border-radius: 50%; box-shadow: 0 0 0 5rem rgba(197,163,109,.025),0 0 0 10rem rgba(197,163,109,.015); }
+.about-philosophy-grid { position: relative; z-index: 1; display: grid; gap: 3rem; align-items: center; padding-block: var(--section-y); }
+.about-beliefs { display: grid; margin-top: 2.75rem; border-top: 1px solid rgba(255,255,255,.2); }
+.about-belief { padding: 1.1rem 0; border-bottom: 1px solid rgba(255,255,255,.15); }
+.about-craft-section { background: var(--paper-light); }
+.about-craft-grid { display: grid; gap: 3.5rem; }
+.about-material-collage { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; align-items: start; }
+.about-material-collage > :nth-child(2) { margin-top: 4rem; }
+.about-approach-link { display: flex; min-height: 96px; align-items: center; justify-content: space-between; gap: 1.5rem; color: var(--wine); border-block: 1px solid var(--line); transition: padding .4s var(--ease-out), background-color .4s; }
+.about-approach-link:hover { padding-inline: 1rem; background: var(--paper-deep); }
+
+/* Services */
+.services-index { background: var(--paper-light); }
+.services-index-grid { display: grid; gap: 2.4rem 1.25rem; }
+.services-index-card .picture-frame { transition: transform .55s var(--ease-out), box-shadow .55s; }
+.services-index-card:hover .picture-frame { transform: translateY(-5px); box-shadow: 0 26px 65px -38px rgba(53,11,10,.5); }
+.service-section-inner { display: grid; align-items: center; gap: 3rem; padding-block: var(--section-y); }
+.service-copy { max-width: 38rem; }
+.service-detail-grid { display: grid; gap: 2.25rem; margin-top: 2.5rem; }
+.service-feature-list { margin-top: 1rem; border-top: 1px solid var(--line); }
+.service-feature-list li { display: flex; align-items: center; gap: .75rem; padding: .75rem 0; border-bottom: 1px solid var(--line); font-size: .82rem; }
+.service-feature-list li::before { content: ""; width: .35rem; height: .35rem; flex: 0 0 auto; border: 1px solid var(--brass); transform: rotate(45deg); }
+.service-ideal-list { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1rem; }
+.service-ideal-list li { padding: .55rem .75rem; border: 1px solid var(--line); color: var(--muted-ink); font-size: .75rem; }
+
+/* Project archive and detail */
+.project-archive { background: var(--paper); }
+.project-archive-grid { display: grid; gap: 3.25rem 1.5rem; }
+.project-detail-hero { position: relative; isolation: isolate; overflow: hidden; padding: calc(var(--header-h) + 4rem) 0 clamp(3.5rem,7vw,6.5rem); color: #fff; background: radial-gradient(circle at 80% 15%,rgba(197,163,109,.16),transparent 22%),linear-gradient(135deg,#591511,#300908); }
+.project-detail-hero::after { content: attr(data-project-index); position: absolute; right: -.02em; bottom: -.25em; z-index: -1; color: transparent; font: 400 clamp(16rem,36vw,34rem)/.75 "Cormorant Garamond",Georgia,serif; -webkit-text-stroke: 1px rgba(255,255,255,.075); }
+.project-detail-heading-grid { display: grid; gap: 2.5rem; margin-top: 3rem; }
+.project-detail-title { max-width: 11ch; font-size: clamp(4rem,10vw,9.5rem); line-height: .84; }
+.project-detail-meta { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1.25rem; padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,.25); }
+.project-hero-wrap { margin-top: clamp(1.5rem,4vw,4rem); }
+.project-hero-wrap .picture-frame { box-shadow: 0 34px 90px -56px rgba(53,11,10,.6); }
+.project-story-grid { display: grid; gap: 3.5rem; padding-block: var(--section-y); }
+.project-story-details { display: grid; gap: 2.5rem; }
+.project-gallery-grid { display: grid; gap: 1.5rem; }
+.project-next-link { transition: background-color .35s; }
+.project-next-link:hover { background: var(--paper-deep); }
+
+/* Visual gallery */
+.premium-gallery-grid { display: grid; gap: 2.25rem 1.1rem; margin-top: 2.5rem; }
+.premium-gallery-item { width: 100%; color: #fff; text-align: left; }
+.gallery-item-meta { display: flex; justify-content: space-between; gap: .75rem; padding: .8rem 0; color: rgba(255,255,255,.64); font-size: .625rem; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+
+/* Consultation */
+.contact-layout { display: grid; gap: 3.5rem; padding-block: clamp(3.75rem,8vw,7.5rem); }
+.contact-sidebar { display: flex; flex-direction: column; gap: 2rem; }
+.contact-intro { max-width: 31rem; color: var(--muted-ink); font: 400 clamp(1.7rem,3vw,2.8rem)/1.16 "Cormorant Garamond",Georgia,serif; }
+.contact-detail-card { padding: 1.4rem; border: 1px solid var(--line); background: rgba(255,254,251,.58); }
+.contact-map-section { background: var(--paper-deep); }
+.contact-map-shell { position: relative; overflow: hidden; border: 1px solid rgba(91,23,20,.14); background: var(--paper); }
+.contact-map-shell::after { content: ""; position: absolute; inset: .75rem; border: 1px solid rgba(255,255,255,.6); pointer-events: none; }
+.enquiry-grid { display: grid; gap: 1.75rem; }
+.enquiry-field { min-width: 0; }
+.enquiry-submit-row { display: flex; flex-direction: column; gap: 1rem; padding-top: .5rem; }
+.enquiry-success { padding: 2.5rem; border: 1px solid var(--line); background: var(--paper-light); }
+
+/* Full process */
+.process-timeline { position: relative; border-top: 1px solid var(--line); }
+.process-row { display: grid; gap: 2rem; padding: 3.25rem 0; border-bottom: 1px solid var(--line); }
+.process-number { color: rgba(91,23,20,.28); font: 400 clamp(4.5rem,9vw,8rem)/.7 "Cormorant Garamond",Georgia,serif; }
+.process-copy { max-width: 37rem; }
+.process-image { box-shadow: 0 28px 70px -48px rgba(53,11,10,.55); }
+
+/* Publication */
+.brochure-action-bar { top: var(--header-h); background: rgba(255,254,251,.91); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+.brochure-viewer-head { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(91,23,20,.2); }
+.brochure-controls { display: flex; align-items: center; gap: .75rem; }
+.brochure-control { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid rgba(91,23,20,.28); color: var(--wine); transition: color .25s,background-color .25s; }
+.brochure-control:hover { color: #fff; background: var(--wine); }
+.brochure-spread { display: grid; max-width: 68rem; margin-inline: auto; align-items: start; gap: 1.25rem; }
+.brochure-download-section { background: var(--paper-light); }
+
+/* Legal */
+.legal-shell { min-height: 70svh; padding: calc(var(--header-h) + 5rem) 0 var(--section-y); }
+.legal-heading { max-width: 12ch; color: var(--wine); font: 400 clamp(3.6rem,8vw,7.5rem)/.86 "Cormorant Garamond",Georgia,serif; }
+.legal-prose { max-width: 45rem; margin-top: 4rem; color: var(--muted-ink); font-size: .94rem; line-height: 1.9; }
+.legal-prose h2 { margin-top: 2.75rem; color: var(--wine); font: 400 1.8rem/1.1 "Cormorant Garamond",Georgia,serif; }
+.legal-prose p { margin-top: .9rem; }
+
+@media (min-width: 560px) {
+  .services-index-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .project-archive-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .premium-gallery-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .enquiry-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .enquiry-field--wide, .enquiry-submit-row, .enquiry-error { grid-column: 1/-1; }
+  .enquiry-submit-row { flex-direction: row; align-items: center; justify-content: space-between; }
+  .about-beliefs { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .about-belief { padding-inline: 1rem; border-right: 1px solid rgba(255,255,255,.15); border-bottom: 0; }
+  .about-belief:first-child { padding-left: 0; }
+  .about-belief:last-child { border-right: 0; }
+}
+
+@media (min-width: 768px) {
+  .project-archive-grid { grid-template-columns: repeat(12,minmax(0,1fr)); gap: 4.5rem 2rem; }
+  .project-archive-grid > article:nth-child(4n+1) { grid-column: span 7; }
+  .project-archive-grid > article:nth-child(4n+2) { grid-column: span 5; margin-top: 6rem; }
+  .project-archive-grid > article:nth-child(4n+3), .project-archive-grid > article:nth-child(4n+4) { grid-column: span 6; }
+  .project-gallery-grid { grid-template-columns: repeat(12,minmax(0,1fr)); gap: 2rem; }
+  .project-gallery-grid > :nth-child(4n+1) { grid-column: span 7; }
+  .project-gallery-grid > :nth-child(4n+2) { grid-column: span 5; margin-top: 6rem; }
+  .project-gallery-grid > :nth-child(4n+3) { grid-column: 2/span 5; }
+  .project-gallery-grid > :nth-child(4n+4) { grid-column: 7/span 6; margin-top: 4rem; }
+  .premium-gallery-grid { grid-template-columns: repeat(12,minmax(0,1fr)); gap: 3rem 1.5rem; }
+  .premium-gallery-item { grid-column: span 6; }
+  .premium-gallery-item:nth-child(5n+1) { grid-column: span 7; }
+  .premium-gallery-item:nth-child(5n+2) { grid-column: span 5; margin-top: 5rem; }
+  .premium-gallery-item:nth-child(5n+3) { grid-column: 2/span 4; }
+  .premium-gallery-item:nth-child(5n+4) { grid-column: 7/span 6; margin-top: 2rem; }
+  .premium-gallery-item:nth-child(5n) { grid-column: 3/span 8; }
+  .brochure-spread { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 2.5rem; }
+}
+
+@media (min-width: 1024px) {
+  .about-story-grid { grid-template-columns: repeat(12,minmax(0,1fr)); gap: 4rem; }
+  .about-story-grid > :first-child { grid-column: span 5; }
+  .about-story-copy { grid-column: 7/span 6; }
+  .about-philosophy-grid, .about-craft-grid { grid-template-columns: repeat(12,minmax(0,1fr)); gap: 5rem; }
+  .about-philosophy-media { grid-column: span 5; }
+  .about-philosophy-copy { grid-column: 7/span 6; }
+  .about-craft-copy { grid-column: span 5; }
+  .about-material-collage { grid-column: 7/span 6; }
+  .services-index-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 3.5rem 1.5rem; }
+  .service-section-inner { grid-template-columns: repeat(12,minmax(0,1fr)); gap: 5rem; }
+  .service-media { grid-column: span 6; }
+  .service-copy { grid-column: 8/span 5; }
+  .service-section-inner.is-flipped .service-media { grid-column: 7/span 6; order: 2; }
+  .service-section-inner.is-flipped .service-copy { grid-column: 1/span 5; order: 1; }
+  .service-detail-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .project-detail-heading-grid, .project-story-grid, .contact-layout, .process-row { grid-template-columns: repeat(12,minmax(0,1fr)); gap: 4rem; }
+  .project-detail-heading-grid > :first-child { grid-column: span 8; }
+  .project-detail-heading-grid > :last-child { grid-column: 9/span 4; align-self: end; }
+  .project-story-lead { grid-column: span 5; }
+  .project-story-details { grid-column: 7/span 6; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .contact-sidebar { grid-column: span 4; }
+  .contact-form-panel { grid-column: 6/span 7; }
+  .process-row { align-items: center; padding-block: 5rem; }
+  .process-number { grid-column: span 2; }
+  .process-copy { grid-column: 3/span 5; }
+  .process-image { grid-column: 9/span 4; }
+  .process-row:nth-child(even) .process-image { margin-top: 3rem; }
+}
+
+@media (max-width: 559px) {
+  .services-index-grid { grid-template-columns: 1fr; }
+  .services-index-card { display: grid; grid-template-columns: 7.5rem 1fr; align-items: center; gap: 1rem; }
+  .services-index-card .picture-frame { aspect-ratio: 1 !important; }
+  .services-index-card .service-index-link { min-height: 100%; border-top: 1px solid rgba(91,23,20,.22); }
+  .premium-gallery-grid { grid-template-columns: 1fr; }
+  .premium-gallery-item:nth-child(even) { width: 86%; margin-left: auto; }
+  .consultation-form { padding: 1.25rem; }
+}

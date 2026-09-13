@@ -1,7 +1,19 @@
+const signatures = [
+  { title: "Design", note: "Spaces shaped around real life." },
+  { title: "Make", note: "Furniture resolved to the millimetre." },
+  { title: "Install", note: "One team through the final detail." },
+];
+
 export const Strip = () => (
-  <div className="bg-oxblood text-white" data-testid="studio-signature-strip">
-    <div className="container-x flex flex-wrap items-center justify-between gap-4 border-b border-white/20 py-5 text-[10px] uppercase">
-      <p>Suvi Interior · Nashik</p><p>Interior design &amp; furniture manufacturing</p><p className="hidden md:block">One studio. From concept to completion.</p>
+  <section className="signature-strip" data-testid="studio-signature-strip" aria-label="The Suvi approach">
+    <div className="container-x signature-strip-inner">
+      {signatures.map((item, index) => (
+        <div className="signature-item" key={item.title}>
+          <span className="signature-index">0{index + 1}</span>
+          <p className="signature-title">{item.title}</p>
+          <p className="signature-note">{item.note}</p>
+        </div>
+      ))}
     </div>
-  </div>
+  </section>
 );

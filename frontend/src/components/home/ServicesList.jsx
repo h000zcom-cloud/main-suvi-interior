@@ -6,15 +6,25 @@ import { services } from "@/content/services";
 
 export const ServicesList = () => {
   const [active, setActive] = useState(0);
-  return <section className="bg-[#eeece7]" data-testid="services-section"><div className="container-x section">
-    <div className="chapter-top"><p className="editorial-label">03 / What we do</p><Link to="/services" data-testid="services-all-link" className="inline-flex gap-6 text-xs">The complete offering<ArrowUpRight className="h-4 w-4" /></Link></div>
-    <div className="grid gap-12 lg:grid-cols-12">
-      <div className="lg:col-span-5"><h2 className="editorial-heading text-oxblood" data-testid="services-heading">Every room.<br /><em>Considered.</em></h2><div className="mt-10 hidden lg:block" data-testid="services-preview"><Picture image={services[Math.max(active,0)].image} ratio="4 / 3" sizes="40vw" /><p className="mt-5 text-sm leading-relaxed text-taupe" data-testid="services-preview-description">{services[Math.max(active,0)].short}</p></div></div>
-      <div className="lg:col-span-6 lg:col-start-7" data-testid="services-accordion">{services.map((s,i)=><div key={s.slug} className="border-b border-oxblood/25">
-        <Link to={`/services#${s.slug}`} onMouseEnter={()=>setActive(i)} onFocus={()=>setActive(i)} data-testid={`service-row-${s.slug}`} className="group hidden items-center gap-5 py-7 text-oxblood lg:flex"><span className="w-7 font-display text-xl text-oxblood/50">{s.number}</span><span className="font-display text-3xl transition-transform duration-300 group-hover:translate-x-2">{s.title}</span><ArrowUpRight className="ml-auto h-5 w-5 shrink-0" /></Link>
-        <button type="button" onClick={()=>setActive(active===i?-1:i)} aria-expanded={active===i} aria-controls={`service-panel-${s.slug}`} data-testid={`service-toggle-${s.slug}`} className="flex w-full items-center gap-4 py-6 text-left text-oxblood lg:hidden"><span className="text-xs opacity-60">{s.number}</span><span className="font-display text-2xl">{s.title}</span>{active===i?<Minus className="ml-auto h-4 w-4 shrink-0" />:<Plus className="ml-auto h-4 w-4 shrink-0" />}</button>
-        {active===i && <div id={`service-panel-${s.slug}`} className="pb-7 lg:hidden" data-testid={`service-panel-${s.slug}`}><Picture image={s.image} ratio="4 / 3" /><p className="mt-4 text-sm leading-relaxed text-taupe">{s.short}</p><Link to={`/services#${s.slug}`} data-testid={`service-mobile-link-${s.slug}`} className="btn-brand mobile-service-link mt-5">Explore service<ArrowUpRight className="h-4 w-4" /></Link></div>}
-      </div>)}</div>
-    </div>
-  </div></section>;
+  const preview = services[Math.max(active, 0)];
+
+  return (
+    <section className="home-services" data-testid="services-section">
+      <div className="container-x section">
+        <div className="chapter-top"><p className="editorial-label">03 / The complete offering</p><Link to="/services" data-testid="services-all-link" className="btn-text">Explore all services<ArrowUpRight className="h-4 w-4" /></Link></div>
+        <div className="home-services-grid">
+          <div className="home-services-heading">
+            <h2 className="editorial-heading text-oxblood" data-testid="services-heading">One vision. Every room <em>resolved.</em></h2>
+            <p className="home-services-intro">From a singular piece of furniture to an entire residence, design and making stay connected from the first conversation onward.</p>
+            <div className="home-services-preview hidden lg:block" data-testid="services-preview"><Picture image={preview.image} ratio="4 / 3" sizes="42vw" /><p className="mt-5 max-w-md text-sm leading-relaxed text-taupe" data-testid="services-preview-description">{preview.short}</p></div>
+          </div>
+          <div className="home-services-list" data-testid="services-accordion">{services.map((service, index) => <div key={service.slug} className="home-service-row">
+            <Link to={`/services#${service.slug}`} onMouseEnter={() => setActive(index)} onFocus={() => setActive(index)} data-testid={`service-row-${service.slug}`} className="home-service-desktop group"><span className="w-8 text-[10px] text-oxblood/55">{service.number}</span><span className="font-display text-[clamp(2rem,3vw,3.2rem)] leading-none transition-transform duration-300 group-hover:translate-x-2">{service.title}</span><ArrowUpRight className="ml-auto h-5 w-5 shrink-0" strokeWidth={1.3} /></Link>
+            <button type="button" onClick={() => setActive(active === index ? -1 : index)} aria-expanded={active === index} aria-controls={`service-panel-${service.slug}`} data-testid={`service-toggle-${service.slug}`} className="home-service-mobile"><span className="text-[10px] opacity-60">{service.number}</span><span className="font-display text-2xl leading-none">{service.title}</span>{active === index ? <Minus className="ml-auto h-4 w-4" /> : <Plus className="ml-auto h-4 w-4" />}</button>
+            {active === index && <div id={`service-panel-${service.slug}`} className="home-service-panel lg:hidden" data-testid={`service-panel-${service.slug}`}><Picture image={service.image} ratio="4 / 3" /><p className="mt-4 text-sm leading-relaxed text-taupe">{service.short}</p><Link to={`/services#${service.slug}`} data-testid={`service-mobile-link-${service.slug}`} className="btn-brand mobile-service-link mt-5">Explore service<ArrowUpRight className="h-4 w-4" /></Link></div>}
+          </div>)}</div>
+        </div>
+      </div>
+    </section>
+  );
 };

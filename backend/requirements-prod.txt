@@ -1,0 +1,39 @@
+# Production runtime dependencies only.
+#
+# backend/requirements.txt is a full snapshot of the development image and pulls in
+# tooling and AI/data packages that the deployed API never imports. Installing it on a
+# host is slow, and it references a private wheel URL that public build systems cannot
+# always reach. Use this file for deployments instead.
+#
+# Versions are pinned to the versions verified locally against this codebase.
+# Imports covered: server.py, invoice_admin.py, invoice_pdf.py, brochure.py.
+
+fastapi==0.110.1
+starlette==0.37.2
+pydantic==2.13.5
+pydantic_core==2.46.5
+anyio==4.15.1
+
+# MongoDB driver. dnspython is required for mongodb+srv:// connection strings
+# such as the ones MongoDB Atlas issues.
+motor==3.3.1
+pymongo==4.6.3
+dnspython==2.8.0
+certifi==2026.7.22
+
+# Admin password hashing.
+bcrypt==4.1.3
+
+# Invoice and brochure PDF rendering.
+reportlab==5.0.1
+pillow==12.3.0
+
+# Brochure image fetching.
+httpx==0.28.1
+
+# Local .env loading. Hosted platforms inject real environment variables instead.
+python-dotenv==1.2.3
+
+# ASGI server. Required when running the API as a long-lived process
+# (VPS, Docker, Render). Serverless platforms supply their own runtime.
+uvicorn==0.25.0

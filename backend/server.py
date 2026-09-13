@@ -1,17 +1,22 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Request, Response
 from fastapi.concurrency import run_in_threadpool
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import re
 import logging
 from pathlib import Path
+from urllib.parse import urlsplit
 from pydantic import BaseModel, Field, ConfigDict, BeforeValidator, field_validator
 from typing import List, Optional, Annotated
 from datetime import datetime, timezone
 
 from brochure import build_pdf
+from invoice_admin import initialize_invoice_admin, router as invoice_admin_router, set_database_provider
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -23,6 +28,14 @@ ADMIN_KEY = os.environ['ADMIN_KEY']
 
 app = FastAPI(title="Suvi Interior API")
 api_router = APIRouter(prefix="/api")
+
+
+def _current_invoice_db():
+    # Resolve the module global at call time so local launchers can replace server.db before startup.
+    return db
+
+
+set_database_provider(_current_invoice_db)
 
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
@@ -135,21 +148,87 @@ async def brochure_pdf():
     )
 
 
-app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error(request: Request, exc: RequestValidationError):
+    if not request.url.path.startswith("/api/v1/admin"):
+        return await request_validation_exception_handler(request, exc)
+    errors = [
+        {
+            "field": ".".join(str(part) for part in error.get("loc", [])[1:]),
+            "message": error.get("msg", "Invalid value").removeprefix("Value error, "),
+            "type": error.get("type", "validation_error"),
+        }
+        for error in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=400,
+        content={
+            "detail": {
+                "code": "validation_error",
+                "message": "Please correct the highlighted fields",
+                "errors": errors,
+            }
+        },
+    )
+
+
+def _parse_cors_origins(raw: str) -> tuple[list[str], bool]:
+    configured = []
+    for candidate in raw.split(','):
+        candidate = candidate.strip()
+        if not candidate:
+            continue
+        if candidate == '*':
+            return ['*'], False
+        candidate = candidate.rstrip('/')
+        try:
+            parsed = urlsplit(candidate)
+            port = parsed.port
+        except ValueError:
+            logger.warning("Ignoring malformed CORS origin %r; configure exact http(s) origins only", candidate)
+            continue
+        if (
+            parsed.scheme not in {'http', 'https'}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+        ):
+            logger.warning("Ignoring invalid CORS origin %r; configure exact http(s) origins only", candidate)
+            continue
+        host = f"[{parsed.hostname}]" if ':' in parsed.hostname else parsed.hostname
+        normalized = f"{parsed.scheme.lower()}://{host}{f':{port}' if port else ''}"
+        if normalized not in configured:
+            configured.append(normalized)
+    return configured, bool(configured)
+
+
+app.include_router(api_router)
+app.include_router(invoice_admin_router)
+
+cors_origins, cors_credentials = _parse_cors_origins(os.environ.get('CORS_ORIGINS', '*'))
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=cors_credentials,
+    allow_origins=cors_origins,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Accept", "Content-Type", "X-Admin-Key", "X-CSRF-Token"],
+)
+
+
+@app.on_event("startup")
+async def startup_invoice_admin():
+    # The provider reads the current global, including a mock/replacement installed after import.
+    await initialize_invoice_admin()
 
 
 @app.on_event("shutdown")

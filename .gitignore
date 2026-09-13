@@ -83,6 +83,10 @@ android-sdk/
 .env
 .env.*
 *.env
+
+# Environment templates are documentation and contain no secrets.
+!.env.example
+!**/.env.example
 credentials.json
 *.key
 .credentials

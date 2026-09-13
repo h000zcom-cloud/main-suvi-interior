@@ -14,9 +14,9 @@ export const Header = ({ menuOpen, onToggle }) => {
           <Wordmark data-testid="header-wordmark" />
         </Link>
         <nav aria-label="Primary" className="header-navigation" data-testid="header-nav">
-          {nav.map(n => (
-            <NavLink key={n.to} to={n.to} data-testid={`nav-link-${n.label.toLowerCase()}`} className={({ isActive }) => `atelier-nav ${isActive ? "is-current" : ""}`}>
-              {n.label}
+          {nav.map((item) => (
+            <NavLink key={item.to} to={item.to} data-testid={`nav-link-${item.label.toLowerCase()}`} className={({ isActive }) => `atelier-nav ${isActive ? "is-current" : ""}`}>
+              {item.label}
             </NavLink>
           ))}
         </nav>
@@ -25,7 +25,7 @@ export const Header = ({ menuOpen, onToggle }) => {
             <Phone className="h-4 w-4" strokeWidth={1.4} />
           </a>
           <Link to="/contact" data-testid="header-cta" className="header-project-link">
-            <span>Start a project</span><ArrowUpRight className="h-4 w-4" strokeWidth={1.4} />
+            <span>Plan your project</span><ArrowUpRight className="h-4 w-4" strokeWidth={1.4} />
           </Link>
           <button type="button" onClick={onToggle} data-testid="mobile-menu-button" aria-label="Open navigation" aria-expanded={menuOpen} aria-controls="mobile-menu" className="header-menu-toggle">
             <span>Menu</span><span className="menu-glyph" aria-hidden="true"><span /><span /></span>

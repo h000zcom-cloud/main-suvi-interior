@@ -1,5 +1,6 @@
 import io
 import hashlib
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,8 +22,32 @@ from brochure_content import CONTENT
 
 ROOT = Path(__file__).parent
 FONT_DIR = ROOT / "fonts"
-CACHE_DIR = ROOT / "cache"
-CACHE_DIR.mkdir(exist_ok=True)
+
+# Images committed alongside the source. Always readable, including on hosts that
+# mount the application code read-only.
+BUNDLED_CACHE_DIR = ROOT / "cache"
+
+
+def _writable_cache_dir() -> Path:
+    """Return a directory that newly downloaded images can be written to.
+
+    Serverless and container hosts often mount the application directory read-only,
+    where only a temporary directory is writable. Prefer the bundled cache so repeat
+    runs stay warm, and fall back to a temporary directory when it is not writable.
+    """
+    try:
+        BUNDLED_CACHE_DIR.mkdir(exist_ok=True)
+        probe = BUNDLED_CACHE_DIR / ".write-probe"
+        probe.write_bytes(b"")
+        probe.unlink()
+        return BUNDLED_CACHE_DIR
+    except OSError:
+        fallback = Path(tempfile.gettempdir()) / "suvi-brochure-cache"
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+
+CACHE_DIR = _writable_cache_dir()
 
 W, H = A4
 M = 42
@@ -61,8 +86,11 @@ def register_fonts():
 
 
 def fetch_image(url: str) -> Image.Image:
-    key = hashlib.sha1(url.encode()).hexdigest()
-    path = CACHE_DIR / f"{key}.jpg"
+    name = f"{hashlib.sha1(url.encode()).hexdigest()}.jpg"
+    bundled = BUNDLED_CACHE_DIR / name
+    if bundled.is_file():
+        return Image.open(bundled).convert("RGB")
+    path = CACHE_DIR / name
     if not path.exists():
         r = httpx.get(url, timeout=30, follow_redirects=True)
         r.raise_for_status()

@@ -1,3 +1,4 @@
+import "@/home-premium.css";
 import { PageWrap } from "@/components/layout/PageWrap";
 import { Seo } from "@/components/layout/Seo";
 import { Hero } from "@/components/home/Hero";
@@ -7,7 +8,6 @@ import { SelectedProjects } from "@/components/home/SelectedProjects";
 import { ServicesList } from "@/components/home/ServicesList";
 import { Process } from "@/components/home/Process";
 import { Materials } from "@/components/home/Materials";
-import { Testimonials } from "@/components/home/Testimonials";
 import { Studio } from "@/components/home/Studio";
 import { CtaBand } from "@/components/ui-custom/CtaBand";
 import { BrochureBand } from "@/components/home/BrochureBand";
@@ -24,8 +24,7 @@ export default function Home() {
       <Process />
       <Materials />
       <BrochureBand />
-      <Testimonials />
-      <Studio />
+      <Studio index="07" />
       <CtaBand />
     </PageWrap>
   );

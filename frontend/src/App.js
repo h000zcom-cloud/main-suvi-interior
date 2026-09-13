@@ -1,76 +1,50 @@
-import { useCallback, useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { ReactLenis } from "lenis/react";
-import "@/App.css";
-import "@/atelier.css";
-import "@/brand-chrome.css";
-import { HeaderThemeProvider } from "@/components/layout/HeaderTheme";
-import { Preloader } from "@/components/layout/Preloader";
-import { Header } from "@/components/layout/Header";
-import { MobileMenu } from "@/components/layout/MobileMenu";
-import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFloat } from "@/components/layout/WhatsAppFloat";
-import Home from "@/pages/Home";
-import About from "@/pages/About";
-import Services from "@/pages/Services";
-import Projects from "@/pages/Projects";
-import ProjectDetail from "@/pages/ProjectDetail";
-import Gallery from "@/pages/Gallery";
-import Contact from "@/pages/Contact";
-import Process from "@/pages/Process";
-import Brochure from "@/pages/Brochure";
-import { Privacy, Terms, NotFound } from "@/pages/Legal";
+import { lazy, Suspense, useEffect } from "react";
+import { BrowserRouter, useLocation } from "react-router-dom";
 
-function Shell() {
-  const location = useLocation();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
+function isAdminPath(pathname) {
+  return pathname === "/admin" || pathname.startsWith("/admin/");
+}
 
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [location.pathname]);
+const documentIsAdmin = typeof window !== "undefined"
+  ? typeof window.__SUVI_ADMIN__ === "boolean"
+    ? window.__SUVI_ADMIN__
+    : isAdminPath(window.location.pathname)
+  : false;
+
+const PublicApp = lazy(() => import("@/PublicApp"));
+const AdminApp = lazy(() => import("@/admin/AdminApp"));
+
+function RouteLoadingFallback() {
+  return (
+    <div className="app-route-loader" role="status" aria-live="polite">
+      <span className="app-route-loader__mark" aria-hidden="true">S</span>
+      <span>Loading workspace…</span>
+    </div>
+  );
+}
+
+function RouteBranch() {
+  const { pathname } = useLocation();
+  const routeIsAdmin = isAdminPath(pathname);
+  const branchChanged = routeIsAdmin !== documentIsAdmin;
 
   useEffect(() => {
-    const desktop = window.matchMedia("(min-width: 1280px)");
-    const closeOnDesktop = () => { if (desktop.matches) setMenuOpen(false); };
-    desktop.addEventListener("change", closeOnDesktop);
-    return () => desktop.removeEventListener("change", closeOnDesktop);
-  }, []);
+    if (branchChanged) window.location.reload();
+  }, [branchChanged]);
+
+  if (branchChanged) return <RouteLoadingFallback />;
 
   return (
-    <HeaderThemeProvider>
-      <a href="#main" className="skip-link" data-testid="skip-to-content">
-        Skip to content
-      </a>
-      <Preloader />
-      <Header menuOpen={menuOpen} onToggle={() => setMenuOpen((o) => !o)} />
-      <MobileMenu open={menuOpen} onClose={closeMenu} />
-        <Routes key={location.pathname}>
-          <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/services" element={<Services />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/projects/:slug" element={<ProjectDetail />} />
-          <Route path="/gallery" element={<Gallery />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/process" element={<Process />} />
-          <Route path="/brochure" element={<Brochure />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      <Footer />
-      <WhatsAppFloat hidden={menuOpen} />
-    </HeaderThemeProvider>
+    <Suspense fallback={<RouteLoadingFallback />}>
+      {documentIsAdmin ? <AdminApp /> : <PublicApp />}
+    </Suspense>
   );
 }
 
 export default function App() {
   return (
     <BrowserRouter>
-      <ReactLenis root options={{ lerp: 0.085, smoothWheel: true, wheelMultiplier: 0.95 }}>
-        <Shell />
-      </ReactLenis>
+      <RouteBranch />
     </BrowserRouter>
   );
 }
