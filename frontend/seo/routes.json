@@ -1,0 +1,111 @@
+{
+  "_comment": [
+    "Single source of truth for the build-time SEO generator (frontend/scripts/generate-seo.js).",
+    "The generator writes these values into static HTML, sitemap.xml and llms.txt so that",
+    "crawlers which do not execute JavaScript still receive titles, descriptions, canonicals,",
+    "Open Graph tags and JSON-LD.",
+    "Keep title/description in sync with the <Seo> props in the matching page component."
+  ],
+  "siteUrl": "https://suviinterior.com",
+  "titleSuffix": " | Suvi Interior",
+  "defaultTitle": "Suvi Interior | Interior Designers in Nashik — Kitchens, Custom Furniture & Home Interiors",
+  "routes": [
+    {
+      "path": "/",
+      "title": null,
+      "description": "Suvi Interior — interior designers in Nashik. Modular kitchens, custom furniture, TV units, bedroom interiors and complete home interior design, designed and made by one studio.",
+      "priority": "1.0",
+      "changefreq": "weekly",
+      "llmsSection": "Main pages",
+      "llmsNote": "Studio overview, featured work and how to start a project"
+    },
+    {
+      "path": "/services",
+      "title": "Interior Design & Modular Furniture Services in Nashik",
+      "description": "Modular kitchens, living spaces, bedroom interiors, TV & wall systems, custom furniture and complete home interiors — designed and manufactured by Suvi Interior in Nashik.",
+      "priority": "0.9",
+      "changefreq": "monthly",
+      "llmsSection": "Main pages",
+      "llmsNote": "The six services offered, what each includes and who each suits"
+    },
+    {
+      "path": "/projects",
+      "title": "Spaces & Stories — Interior Design in Nashik",
+      "description": "Explore Suvi Interior's design directions for homes, modular kitchens, living rooms, bedrooms and custom furniture.",
+      "priority": "0.9",
+      "changefreq": "monthly",
+      "llmsSection": "Main pages",
+      "llmsNote": "Project archive by category: residential, kitchens, living, bedroom, furniture"
+    },
+    {
+      "path": "/process",
+      "title": "Our Process — Interior Design in Nashik",
+      "description": "How Suvi Interior works: Discover, Design, Detail, Craft, Live. A clear five-step interior design and furniture process for homes in Nashik.",
+      "priority": "0.8",
+      "changefreq": "yearly",
+      "llmsSection": "Main pages",
+      "llmsNote": "Five-step process from first measurement to handover"
+    },
+    {
+      "path": "/about",
+      "title": "The Studio — Suvi Interior, Nashik",
+      "description": "Suvi Interior is an interior design and furniture studio in Nashik, Maharashtra, designing and manufacturing kitchens, wardrobes, TV units and complete home interiors in house.",
+      "priority": "0.8",
+      "changefreq": "yearly",
+      "llmsSection": "Main pages",
+      "llmsNote": "Who the studio is, why design and manufacturing sit under one roof"
+    },
+    {
+      "path": "/gallery",
+      "title": "The Detail Edit — Interior Gallery",
+      "description": "A visual library of interiors, furniture, materials and considered details from Suvi Interior, Nashik.",
+      "priority": "0.7",
+      "changefreq": "monthly",
+      "llmsSection": "Main pages",
+      "llmsNote": "Image library grouped by room type, furniture and material detail"
+    },
+    {
+      "path": "/brochure",
+      "title": "Inside Suvi — The Studio Brochure",
+      "description": "Explore the Suvi Interior studio brochure. Seven pages of interiors, furniture, materials and our process. Download the PDF directly.",
+      "priority": "0.6",
+      "changefreq": "yearly",
+      "llmsSection": "Main pages",
+      "llmsNote": "Readable studio brochure with a direct PDF download"
+    },
+    {
+      "path": "/contact",
+      "title": "Let's Begin — Contact Suvi Interior",
+      "description": "Start your interior project with Suvi Interior, Nashik. Call +91 97020 39381, WhatsApp us or request a consultation.",
+      "priority": "0.9",
+      "changefreq": "yearly",
+      "llmsSection": "Main pages",
+      "llmsNote": "Studio address in Ambad, Nashik, phone, WhatsApp and enquiry form"
+    },
+    {
+      "path": "/privacy",
+      "title": "Privacy Policy",
+      "description": "How Suvi Interior collects, uses and retains the details you share through this website or an interior project enquiry.",
+      "priority": "0.2",
+      "changefreq": "yearly",
+      "llmsSection": "Legal",
+      "llmsNote": "How enquiry details are handled"
+    },
+    {
+      "path": "/terms",
+      "title": "Terms of Use",
+      "description": "The terms that apply when you use the Suvi Interior website or submit an interior design enquiry to the studio in Nashik.",
+      "priority": "0.2",
+      "changefreq": "yearly",
+      "llmsSection": "Legal",
+      "llmsNote": "Website terms, including the representative-imagery notice"
+    }
+  ],
+  "projectRoute": {
+    "pathPrefix": "/projects/",
+    "titleSuffix": null,
+    "priority": "0.6",
+    "changefreq": "yearly",
+    "llmsSection": "Projects"
+  }
+}

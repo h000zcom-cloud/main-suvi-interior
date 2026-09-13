@@ -4,6 +4,18 @@
 export const site = {
   name: "Suvi Interior",
   wordmark: ["Suvi", "Interior"],
+
+  // Canonical production origin. Every canonical URL, sitemap entry and JSON-LD @id
+  // is built from this, so search engines never index a preview or *.vercel.app copy.
+  url: "https://suviinterior.com",
+
+  // Sharing image used for Open Graph, Twitter cards and LocalBusiness.image.
+  // TODO(Suvi Interior): replace with a self-hosted 1200x630 brand image once studio
+  // photography is available; this currently points at an external generated asset.
+  ogImage:
+    "https://static.prod-images.emergentagent.com/jobs/f269e9d1-749a-45df-9bb4-b97d233efcd1/images/cbd42da2d5aeab75d8c03160dffa60bc7caccaef27cadd63015168b228dfde6a.jpeg",
+  ogImageAlt:
+    "Warm contemporary living room interior designed and manufactured by Suvi Interior, Nashik",
   tagline: "Interior design, custom furniture and execution — Nashik",
   descriptor: "Interior Design & Furniture · Nashik",
   positioning:
@@ -29,6 +41,43 @@ export const site = {
   },
 
   phone: { display: "+91 97020 39381", tel: "+919702039381" },
+
+  // Localities within Nashik city. Safe to publish: the studio states it works with
+  // homeowners across the city and the surrounding region (see content/about.js).
+  serviceAreas: [
+    "Nashik",
+    "Ambad",
+    "Pandhari Mala",
+    "Uttam Nagar",
+    "Satpur",
+    "Indira Nagar",
+    "Panchavati",
+    "Gangapur Road",
+    "College Road",
+    "Nashik Road",
+    "Cidco",
+    "Adgaon",
+    "Pathardi Phata",
+    "Deolali",
+  ],
+
+  // Towns and cities near Nashik. Intentionally NOT published in structured data or
+  // page copy until Suvi Interior confirms it actually takes projects in each one —
+  // claiming unserved locations is a local-SEO and trust risk.
+  nearbyAreasPendingConfirmation: [
+    "Sinnar",
+    "Ozar",
+    "Pimpalgaon Baswant",
+    "Niphad",
+    "Dindori",
+    "Igatpuri",
+    "Trimbakeshwar",
+  ],
+
+  // Exact rooftop coordinates for the LocalBusiness "geo" property and Google Business
+  // Profile URL. Both stay null until verified — a wrong pin actively harms map ranking.
+  geo: { latitude: null, longitude: null },
+  googleBusinessProfile: null,
 
   whatsapp: {
     enabled: true,

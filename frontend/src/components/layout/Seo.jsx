@@ -1,13 +1,28 @@
 import { useEffect } from "react";
 import { site } from "@/content/site";
 
+// NOTE: keep the per-route title/description strings here in sync with
+// frontend/seo/routes.json, which the build-time generator uses to write the same
+// values into static HTML for crawlers that do not execute JavaScript.
+
 const DEFAULT_TITLE = "Suvi Interior | Interior Designers in Nashik — Kitchens, Custom Furniture & Home Interiors";
-const DEFAULT_IMAGE =
-  "https://static.prod-images.emergentagent.com/jobs/f269e9d1-749a-45df-9bb4-b97d233efcd1/images/cbd42da2d5aeab75d8c03160dffa60bc7caccaef27cadd63015168b228dfde6a.jpeg";
+
+// Canonical origin is fixed to the production domain so preview and *.vercel.app
+// deployments never emit competing canonicals for the same content.
+const ORIGIN = String(site.url || "").replace(/\/+$/, "");
+
+const absolute = (pathOrUrl) => {
+  if (!pathOrUrl) return "";
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  return `${ORIGIN}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+};
 
 const setMeta = (attr, key, content) => {
-  if (!content) return;
   let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+  if (!content) {
+    if (el) el.remove();
+    return;
+  }
   if (!el) {
     el = document.createElement("meta");
     el.setAttribute(attr, key);
@@ -16,31 +31,116 @@ const setMeta = (attr, key, content) => {
   el.setAttribute("content", content);
 };
 
-const localBusiness = (origin) => ({
+const setLink = (rel, href, hreflang) => {
+  const selector = hreflang ? `link[rel="${rel}"][hreflang="${hreflang}"]` : `link[rel="${rel}"]`;
+  let el = document.head.querySelector(selector);
+  if (!href) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("link");
+    el.setAttribute("rel", rel);
+    if (hreflang) el.setAttribute("hreflang", hreflang);
+    document.head.appendChild(el);
+  }
+  el.setAttribute("href", href);
+};
+
+const postalAddress = () => ({
+  "@type": "PostalAddress",
+  streetAddress: site.address.streetAddress,
+  addressLocality: site.city,
+  addressRegion: site.region,
+  postalCode: site.postalCode,
+  addressCountry: site.country,
+});
+
+const organization = () => ({
   "@context": "https://schema.org",
-  "@type": "LocalBusiness",
-  "@id": `${origin}/#business`,
+  "@type": "Organization",
+  "@id": `${ORIGIN}/#organization`,
   name: site.name,
+  url: `${ORIGIN}/`,
   description: site.description,
-  url: origin,
+  logo: { "@type": "ImageObject", url: absolute(site.ogImage) },
+  image: absolute(site.ogImage),
   telephone: site.phone.tel,
-  image: DEFAULT_IMAGE,
-  address: {
-    "@type": "PostalAddress",
-    streetAddress: site.address.streetAddress,
-    addressLocality: site.city,
-    addressRegion: site.region,
-    postalCode: site.postalCode,
-    addressCountry: site.country,
-  },
-  areaServed: { "@type": "City", name: "Nashik" },
-  knowsAbout: ["Interior Design", "Custom Furniture", "Modular Kitchens", "TV Units", "Furniture Manufacturing"],
-  ...(site.hours.length
-    ? { openingHours: site.hours.map((h) => `${h.days} ${h.time}`) }
-    : {}),
-  ...(Object.values(site.social).some(Boolean)
+  address: postalAddress(),
+  ...(site.email ? { email: site.email } : {}),
+  ...(Object.values(site.social || {}).some(Boolean)
     ? { sameAs: Object.values(site.social).filter(Boolean) }
     : {}),
+});
+
+// LocalBusiness drives the map/local pack. additionalType points at the Wikidata entity
+// for interior design because schema.org has no dedicated interior-design business type.
+const localBusiness = () => ({
+  "@context": "https://schema.org",
+  "@type": ["LocalBusiness", "HomeAndConstructionBusiness"],
+  "@id": `${ORIGIN}/#business`,
+  additionalType: "https://www.wikidata.org/wiki/Q1474884",
+  name: site.name,
+  description: site.description,
+  url: `${ORIGIN}/`,
+  telephone: site.phone.tel,
+  image: absolute(site.ogImage),
+  parentOrganization: { "@id": `${ORIGIN}/#organization` },
+  address: postalAddress(),
+  areaServed: (site.serviceAreas || [site.city]).map((name) => ({ "@type": "City", name })),
+  knowsAbout: [
+    "Interior Design",
+    "Modular Kitchens",
+    "Custom Furniture",
+    "TV Units and Wall Systems",
+    "Bedroom Interiors",
+    "Furniture Manufacturing",
+  ],
+  ...(site.geo && site.geo.latitude != null && site.geo.longitude != null
+    ? { geo: { "@type": "GeoCoordinates", latitude: site.geo.latitude, longitude: site.geo.longitude } }
+    : {}),
+  ...(site.mapsQuery
+    ? { hasMap: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(site.mapsQuery)}` }
+    : {}),
+  ...(site.hours && site.hours.length ? { openingHours: site.hours.map((h) => `${h.days} ${h.time}`) } : {}),
+  ...(site.googleReviews && site.googleReviews.enabled && site.googleReviews.rating && site.googleReviews.count
+    ? {
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: site.googleReviews.rating,
+          reviewCount: site.googleReviews.count,
+        },
+      }
+    : {}),
+  ...(Object.values(site.social || {}).some(Boolean) || site.googleBusinessProfile
+    ? {
+        sameAs: [...Object.values(site.social || {}), site.googleBusinessProfile].filter(Boolean),
+      }
+    : {}),
+});
+
+const website = () => ({
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "@id": `${ORIGIN}/#website`,
+  url: `${ORIGIN}/`,
+  name: site.name,
+  description: site.description,
+  inLanguage: "en-IN",
+  publisher: { "@id": `${ORIGIN}/#organization` },
+});
+
+const webPage = (url, title, description, image) => ({
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${url}#webpage`,
+  url,
+  name: title,
+  description,
+  inLanguage: "en-IN",
+  isPartOf: { "@id": `${ORIGIN}/#website` },
+  about: { "@id": `${ORIGIN}/#business` },
+  ...(image ? { primaryImageOfPage: { "@type": "ImageObject", url: absolute(image) } } : {}),
 });
 
 export const breadcrumbs = (origin, items) => ({
@@ -56,32 +156,56 @@ export const breadcrumbs = (origin, items) => ({
 
 const EMPTY = [];
 
-export const Seo = ({ title, description = site.description, path = "/", image = DEFAULT_IMAGE, type = "website", crumbs, jsonLd = EMPTY }) => {
+export const Seo = ({
+  title,
+  description = site.description,
+  path = "/",
+  image = site.ogImage,
+  type = "website",
+  crumbs,
+  jsonLd = EMPTY,
+  noindex = false,
+}) => {
   useEffect(() => {
-    const origin = window.location.origin;
     const fullTitle = title ? `${title} | Suvi Interior` : DEFAULT_TITLE;
-    const url = `${origin}${path}`;
+    const url = absolute(path);
+    const imageUrl = absolute(image);
 
     document.title = fullTitle;
     setMeta("name", "description", description);
+    setMeta(
+      "name",
+      "robots",
+      noindex ? "noindex, follow" : "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+    );
     setMeta("property", "og:title", fullTitle);
     setMeta("property", "og:description", description);
     setMeta("property", "og:type", type);
     setMeta("property", "og:url", url);
-    setMeta("property", "og:image", image);
+    setMeta("property", "og:image", imageUrl);
+    setMeta("property", "og:image:alt", site.ogImageAlt);
+    setMeta("property", "og:site_name", site.name);
+    setMeta("property", "og:locale", "en_IN");
+    setMeta("name", "twitter:card", "summary_large_image");
     setMeta("name", "twitter:title", fullTitle);
     setMeta("name", "twitter:description", description);
-    setMeta("name", "twitter:image", image);
+    setMeta("name", "twitter:image", imageUrl);
+    setMeta("name", "geo.region", "IN-MH");
+    setMeta("name", "geo.placename", site.city);
 
-    let canonical = document.head.querySelector('link[rel="canonical"]');
-    if (!canonical) {
-      canonical = document.createElement("link");
-      canonical.setAttribute("rel", "canonical");
-      document.head.appendChild(canonical);
-    }
-    canonical.setAttribute("href", url);
+    // A canonical is emitted even for noindex pages so duplicate soft-404 URLs
+    // consolidate instead of competing.
+    setLink("canonical", url);
+    setLink("alternate", url, "en-IN");
 
-    const graph = [localBusiness(origin), ...(crumbs ? [breadcrumbs(origin, crumbs)] : []), ...jsonLd];
+    const graph = [
+      organization(),
+      localBusiness(),
+      website(),
+      webPage(url, fullTitle, description, image),
+      ...(crumbs ? [breadcrumbs(ORIGIN, crumbs)] : []),
+      ...jsonLd,
+    ];
     let script = document.getElementById("seo-jsonld");
     if (!script) {
       script = document.createElement("script");
@@ -90,7 +214,7 @@ export const Seo = ({ title, description = site.description, path = "/", image =
       document.head.appendChild(script);
     }
     script.textContent = JSON.stringify(graph);
-  }, [title, description, path, image, type, crumbs, jsonLd]);
+  }, [title, description, path, image, type, crumbs, jsonLd, noindex]);
 
   return null;
 };
