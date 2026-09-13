@@ -30,6 +30,7 @@ const BUILD_DIR = path.join(FRONTEND_DIR, "build");
 const ROUTES_FILE = path.join(FRONTEND_DIR, "seo", "routes.json");
 const SITE_FILE = path.join(FRONTEND_DIR, "src", "content", "site.js");
 const PROJECTS_FILE = path.join(FRONTEND_DIR, "src", "content", "projects.js");
+const SERVICES_FILE = path.join(FRONTEND_DIR, "src", "content", "services.js");
 const IMAGES_FILE = path.join(FRONTEND_DIR, "src", "content", "images.js");
 
 /* ------------------------------------------------------------------ helpers */
@@ -113,6 +114,48 @@ function readLiteralExport(file, name) {
   }
 }
 
+/**
+ * Extracts service routes from content/services.js. Like projects.js it imports image
+ * objects, so only the plain string fields are read out.
+ */
+function readServices() {
+  const source = fs.readFileSync(SERVICES_FILE, "utf8");
+  const services = [];
+
+  for (const match of source.matchAll(/slug:\s*"([a-z0-9-]+)"/g)) {
+    const window = source.slice(match.index, match.index + 3000);
+    const field = (key) => {
+      const found = window.match(new RegExp(`${key}:\\s*\\n?\\s*"((?:[^"\\\\]|\\\\.)*)"`));
+      return found ? found[1].replace(/\\"/g, '"') : null;
+    };
+
+    const faqs = [];
+    const faqBlock = (window.match(/faqs:\s*\[([\s\S]*?)\n\s{4}\]/) || [])[1];
+    if (faqBlock) {
+      const questions = [...faqBlock.matchAll(/q:\s*"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
+      const answers = [...faqBlock.matchAll(/a:\s*\n?\s*"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
+      questions.forEach((q, index) => {
+        if (answers[index]) faqs.push({ q: q.replace(/\\"/g, '"'), a: answers[index].replace(/\\"/g, '"') });
+      });
+    }
+
+    services.push({
+      slug: match[1],
+      title: field("title"),
+      seoTitle: field("seoTitle"),
+      seoDescription: field("seoDescription"),
+      description: field("description"),
+      shortText: field("short"),
+      faqs,
+    });
+  }
+
+  if (!services.length) {
+    throw new Error(`No service slugs found in ${SERVICES_FILE}; service pages would not be prerendered`);
+  }
+  return services;
+}
+
 /** Maps image keys defined as `key: u("<unsplash-id>", "alt")` in content/images.js. */
 function readUnsplashImageIds() {
   if (!fs.existsSync(IMAGES_FILE)) return {};
@@ -175,12 +218,18 @@ const absolute = (value) => {
 const unsplashUrl = (id, width) =>
   `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&q=75&w=${width}`;
 
-const titleFor = (route) =>
-  route.title ? `${route.title}${config.titleSuffix || ""}` : config.defaultTitle;
+// Appends the brand suffix unless the page title already names the studio, so titles
+// never read "… Suvi Interior | Suvi Interior".
+const titleFor = (route) => {
+  if (!route.title) return config.defaultTitle;
+  if (site.name && route.title.includes(site.name)) return route.title;
+  return `${route.title}${config.titleSuffix || ""}`;
+};
 
 /* -------------------------------------------------------------- route models */
 
 const projects = readProjects();
+const servicesList = readServices();
 
 const staticRoutes = config.routes.map((route) => ({
   ...route,
@@ -202,7 +251,21 @@ const projectRoutes = projects.map((project) => ({
   type: "article",
 }));
 
-const allRoutes = [...staticRoutes, ...projectRoutes];
+const serviceRoutes = servicesList.map((service) => ({
+  path: `/services/${service.slug}`,
+  title: service.seoTitle || service.title,
+  fullTitle: `${service.seoTitle || service.title}${config.titleSuffix || ""}`,
+  description: service.seoDescription || service.shortText || site.description,
+  priority: "0.8",
+  changefreq: "monthly",
+  llmsSection: "Services",
+  llmsNote: service.shortText || null,
+  image: absolute(site.ogImage),
+  type: "website",
+  service,
+}));
+
+const allRoutes = [...staticRoutes, ...serviceRoutes, ...projectRoutes];
 
 /* ------------------------------------------------------------------ JSON-LD */
 
@@ -296,6 +359,9 @@ function breadcrumbsFor(route) {
   if (route.path.startsWith(config.projectRoute.pathPrefix)) {
     items.push({ name: "Projects", path: "/projects" });
     items.push({ name: route.title, path: route.path });
+  } else if (route.service) {
+    items.push({ name: "Services", path: "/services" });
+    items.push({ name: route.service.title, path: route.path });
   } else {
     items.push({ name: breadcrumbNames[route.path] || route.title, path: route.path });
   }
@@ -328,7 +394,51 @@ function graphFor(route) {
   };
 
   const crumbs = breadcrumbsFor(route);
-  return [organization, localBusiness, website, webPage, ...(crumbs ? [crumbs] : [])];
+  const extra = [];
+
+  if (route.service) {
+    extra.push({
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${url}#service`,
+      name: route.service.title,
+      serviceType: route.service.title,
+      description: route.service.description || route.description,
+      url,
+      provider: { "@id": `${ORIGIN}/#business` },
+      areaServed: (site.serviceAreas || [site.city]).map((name) => ({ "@type": "City", name })),
+    });
+
+    if (route.service.faqs && route.service.faqs.length) {
+      extra.push({
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "@id": `${url}#faq`,
+        mainEntity: route.service.faqs.map((faq) => ({
+          "@type": "Question",
+          name: faq.q,
+          acceptedAnswer: { "@type": "Answer", text: faq.a },
+        })),
+      });
+    }
+  }
+
+  if (route.path === "/services") {
+    extra.push({
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "@id": `${url}#servicelist`,
+      name: "Interior design and furniture services in Nashik",
+      itemListElement: servicesList.map((service, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: service.title,
+        url: `${ORIGIN}/services/${service.slug}`,
+      })),
+    });
+  }
+
+  return [organization, localBusiness, website, webPage, ...(crumbs ? [crumbs] : []), ...extra];
 }
 
 /* --------------------------------------------------------------- prerenderer */
@@ -395,6 +505,62 @@ function headBlockFor(route) {
   return tags.map((tag) => `        ${tag}`).join("\n");
 }
 
+/**
+ * Builds the <noscript> body fallback.
+ *
+ * React renders the visible page after hydration, so a crawler that does not execute
+ * JavaScript sees an empty <div id="root">. This writes a faithful text version of the
+ * same page — heading, summary, the real on-page lists and the real internal links — so
+ * non-rendering crawlers and LLM agents receive the actual content rather than a shell.
+ *
+ * It deliberately mirrors what the React page renders; it must never contain claims or
+ * keywords that are absent from the live page.
+ */
+function bodyFallbackFor(route) {
+  const parts = [];
+  const heading = route.service ? route.service.title : route.title || site.name;
+
+  parts.push(`<h1>${escapeHtml(heading)}</h1>`);
+  parts.push(`<p>${escapeHtml(route.description)}</p>`);
+
+  if (route.service) {
+    if (route.service.description) parts.push(`<p>${escapeHtml(route.service.description)}</p>`);
+    if (route.service.faqs && route.service.faqs.length) {
+      parts.push("<h2>Common questions</h2>");
+      parts.push("<dl>");
+      for (const faq of route.service.faqs) {
+        parts.push(`<dt>${escapeHtml(faq.q)}</dt><dd>${escapeHtml(faq.a)}</dd>`);
+      }
+      parts.push("</dl>");
+    }
+  }
+
+  parts.push(
+    `<p>${escapeHtml(site.name)}, ${escapeHtml((site.address.lines || []).join(", "))}. ` +
+      `Telephone <a href="tel:${escapeHtml(site.phone.tel)}">${escapeHtml(site.phone.display)}</a>.</p>`,
+  );
+
+  const links = [
+    ...servicesList.map((service) => ({
+      href: `/services/${service.slug}`,
+      label: `${service.title} in ${site.city}`,
+    })),
+    { href: "/projects", label: "Projects" },
+    { href: "/process", label: "Our process" },
+    { href: "/about", label: "About the studio" },
+    { href: "/contact", label: "Contact" },
+  ].filter((link) => link.href !== route.path);
+
+  parts.push("<h2>Explore</h2><ul>");
+  for (const link of links) {
+    parts.push(`<li><a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a></li>`);
+  }
+  parts.push("</ul>");
+  parts.push("<p>Enable JavaScript for the full interactive site.</p>");
+
+  return `<noscript>${parts.join("")}</noscript>`;
+}
+
 function renderRoute(template, route) {
   let html = stripManagedTags(template);
 
@@ -403,7 +569,13 @@ function renderRoute(template, route) {
     html = html.replace(/<\/head>/i, `        <title>${escapeHtml(route.fullTitle)}</title>\n    </head>`);
   }
 
-  return html.replace(/<\/head>/i, `${headBlockFor(route)}\n    </head>`);
+  html = html.replace(/<\/head>/i, `${headBlockFor(route)}\n    </head>`);
+
+  const fallback = bodyFallbackFor(route);
+  if (/<noscript>[\s\S]*?<\/noscript>/i.test(html)) {
+    return html.replace(/<noscript>[\s\S]*?<\/noscript>/i, fallback);
+  }
+  return html.replace(/<div id="root">/i, `${fallback}<div id="root">`);
 }
 
 function writeRouteFile(route, html) {
@@ -503,7 +675,10 @@ function main() {
   fs.writeFileSync(path.join(BUILD_DIR, "llms.txt"), buildLlmsTxt(), "utf8");
 
   console.log(`[seo] origin              ${ORIGIN}`);
-  console.log(`[seo] prerendered pages   ${written.length} (${projects.length} project pages)`);
+  console.log(
+    `[seo] prerendered pages   ${written.length} ` +
+      `(${servicesList.length} service pages, ${projects.length} project pages)`,
+  );
   console.log(`[seo] sitemap.xml         ${allRoutes.length} urls, lastmod ${lastmod}`);
   console.log(`[seo] llms.txt            written`);
   if (!site.geo || site.geo.latitude == null) {

@@ -167,7 +167,8 @@ export const Seo = ({
   noindex = false,
 }) => {
   useEffect(() => {
-    const fullTitle = title ? `${title} | Suvi Interior` : DEFAULT_TITLE;
+    // Skip the brand suffix when the page title already names the studio.
+    const fullTitle = title ? (title.includes(site.name) ? title : `${title} | ${site.name}`) : DEFAULT_TITLE;
     const url = absolute(path);
     const imageUrl = absolute(image);
 
