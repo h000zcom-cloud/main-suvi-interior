@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Suvi Interior — Launch &amp; Operations Guide</title>
+<style>
+  :root{
+    --ink:#1A1614; --ink-2:#4A423C; --ink-3:#7A6E64;
+    --paper:#F8F6F0; --paper-2:#EFEBE2; --card:#FFFFFF;
+    --line:#DED7CB; --brand:#581C1C; --brand-2:#8A3A2E; --brass:#A98047;
+    --ok:#2F6B4F; --warn:#8A5A1B; --danger:#8C2B2B;
+    --radius:14px; --shadow:0 1px 2px rgba(26,22,20,.05), 0 8px 24px rgba(26,22,20,.06);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --serif:ui-serif,Georgia,Cambria,"Times New Roman",serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ink:#F2EDE6; --ink-2:#CFC6BB; --ink-3:#9E9287;
+      --paper:#141210; --paper-2:#1C1917; --card:#1F1B19;
+      --line:#332D28; --brand:#E8B4A0; --brand-2:#D98E7A; --brass:#C9A96A;
+      --ok:#6FBF95; --warn:#D9A85C; --danger:#E48A8A;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth; -webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+       font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  a{color:var(--brand-2);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--brand-2) 35%,transparent)}
+  a:hover{border-bottom-color:var(--brand-2)}
+  code{font-family:var(--mono);font-size:.875em;background:var(--paper-2);
+       border:1px solid var(--line);border-radius:6px;padding:.12em .38em;word-break:break-word}
+  h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.2;letter-spacing:-.01em;margin:0}
+  h1{font-size:clamp(1.9rem,5vw,3rem)}
+  h2{font-size:clamp(1.4rem,3.4vw,2rem);margin-bottom:.35rem}
+  h3{font-size:1.08rem;font-family:var(--sans);font-weight:650;letter-spacing:0}
+  p{margin:.65rem 0}
+  ul,ol{margin:.6rem 0 .6rem 1.15rem;padding:0}
+  li{margin:.34rem 0}
+
+  .layout{max-width:1180px;margin:0 auto;padding:0 clamp(1rem,4vw,2.5rem)}
+  .shell{display:grid;grid-template-columns:1fr;gap:2rem}
+  @media (min-width:1024px){
+    .shell{grid-template-columns:250px minmax(0,1fr);gap:3rem;align-items:start}
+    .toc{position:sticky;top:1.5rem;max-height:calc(100vh - 3rem);overflow:auto}
+  }
+
+  header.hero{background:linear-gradient(160deg,var(--brand) 0%,#2E1010 62%,#160707 100%);
+              color:#F6EFE8;padding:clamp(2.2rem,6vw,4rem) 0 clamp(2rem,5vw,3rem);}
+  .eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;
+           color:var(--brass);margin:0 0 .9rem}
+  header.hero h1{color:#FBF7F2}
+  header.hero p{color:#E4D8CE;max-width:62ch}
+  .hero-meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.4rem}
+  .pill{font-family:var(--mono);font-size:.7rem;letter-spacing:.04em;padding:.4rem .7rem;
+        border:1px solid rgba(255,255,255,.22);border-radius:999px;color:#EBDFD5;background:rgba(0,0,0,.16)}
+
+  main{padding:clamp(1.6rem,4vw,3rem) 0 5rem}
+
+  .toc nav{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);
+           padding:1rem;box-shadow:var(--shadow)}
+  .toc p.t{font-family:var(--mono);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;
+           color:var(--ink-3);margin:.1rem 0 .7rem}
+  .toc ol{list-style:none;margin:0;counter-reset:toc}
+  .toc ol li{margin:0;counter-increment:toc}
+  .toc ol li a{display:flex;gap:.55rem;padding:.4rem .3rem;border:0;color:var(--ink-2);font-size:.875rem;border-radius:8px}
+  .toc ol li a::before{content:counter(toc,decimal-leading-zero);color:var(--ink-3);font-family:var(--mono);font-size:.7rem;padding-top:.15rem}
+  .toc ol li a:hover{background:var(--paper-2);color:var(--ink)}
+
+  section.step{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);
+               padding:clamp(1.1rem,3vw,1.9rem);margin:0 0 1.5rem;box-shadow:var(--shadow);scroll-margin-top:1.5rem}
+  .step-head{display:flex;gap:.9rem;align-items:flex-start;flex-wrap:wrap}
+  .num{flex:0 0 auto;width:2.1rem;height:2.1rem;border-radius:999px;background:var(--brand);color:#FCF6F0;
+       display:grid;place-items:center;font-family:var(--mono);font-size:.82rem;font-weight:600}
+  .step-head .grow{flex:1 1 260px;min-width:0}
+  .meta{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+
+  .who{display:inline-block;font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;
+       text-transform:uppercase;padding:.24rem .5rem;border-radius:999px;border:1px solid var(--line);
+       color:var(--ink-2);background:var(--paper-2);white-space:nowrap}
+  .who.you{border-color:color-mix(in srgb,var(--brass) 55%,var(--line));color:var(--brass)}
+
+  .note{border-left:3px solid var(--line);background:var(--paper-2);border-radius:0 10px 10px 0;
+        padding:.8rem 1rem;margin:1rem 0}
+  .note.warn{border-left-color:var(--warn)}
+  .note.danger{border-left-color:var(--danger)}
+  .note.ok{border-left-color:var(--ok)}
+  .note b{display:block;font-size:.82rem;letter-spacing:.02em;margin-bottom:.15rem}
+  .note.warn b{color:var(--warn)} .note.danger b{color:var(--danger)} .note.ok b{color:var(--ok)}
+  .note p{margin:.25rem 0}
+
+  pre{position:relative;margin:.9rem 0;background:#12100E;color:#E9E1D8;border:1px solid #2A2521;
+      border-radius:10px;padding:.95rem 1rem;overflow-x:auto;font-family:var(--mono);font-size:.8rem;line-height:1.6}
+  pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit}
+  .copy{position:absolute;top:.5rem;right:.5rem;font-family:var(--mono);font-size:.64rem;letter-spacing:.06em;
+        text-transform:uppercase;background:#241F1C;color:#C9BEB2;border:1px solid #3A332E;border-radius:6px;
+        padding:.3rem .5rem;cursor:pointer}
+  .copy:hover{background:#302A25;color:#F0E7DD}
+  .copy.done{color:#8FD3AC;border-color:#2F6B4F}
+
+  .tablewrap{overflow-x:auto;margin:1rem 0;border:1px solid var(--line);border-radius:10px}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:.875rem}
+  th,td{text-align:left;padding:.65rem .8rem;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;
+     color:var(--ink-3);background:var(--paper-2);white-space:nowrap}
+  tr:last-child td{border-bottom:0}
+  td code{white-space:nowrap}
+
+  .check{list-style:none;margin:.8rem 0 0;padding:0}
+  .check li{display:flex;gap:.65rem;align-items:flex-start;padding:.5rem .6rem;border-radius:8px}
+  .check li:hover{background:var(--paper-2)}
+  .check input{margin-top:.32rem;width:1.05rem;height:1.05rem;accent-color:var(--brand);flex:0 0 auto}
+  .check label{cursor:pointer;flex:1 1 auto}
+  .check input:checked + label{color:var(--ink-3);text-decoration:line-through}
+
+  .grid2{display:grid;gap:1rem}
+  @media (min-width:680px){.grid2{grid-template-columns:1fr 1fr}}
+  .mini{border:1px solid var(--line);border-radius:10px;padding:.9rem 1rem;background:var(--paper-2)}
+  .mini h3{margin-bottom:.3rem;font-size:.95rem}
+  .mini p{margin:.2rem 0;font-size:.875rem;color:var(--ink-2)}
+
+  .bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--paper) 88%,transparent);
+       backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .bar .layout{display:flex;align-items:center;gap:1rem;justify-content:space-between;padding-top:.6rem;padding-bottom:.6rem}
+  .bar strong{font-family:var(--serif);font-weight:600}
+  .progress{display:flex;align-items:center;gap:.6rem;font-family:var(--mono);font-size:.7rem;color:var(--ink-3)}
+  .track{width:120px;height:5px;border-radius:999px;background:var(--line);overflow:hidden}
+  .fill{height:100%;width:0;background:var(--brand);transition:width .25s ease}
+  .reset{font-family:var(--mono);font-size:.64rem;text-transform:uppercase;letter-spacing:.06em;
+         background:none;border:1px solid var(--line);color:var(--ink-3);border-radius:6px;padding:.3rem .5rem;cursor:pointer}
+  .reset:hover{color:var(--ink);border-color:var(--ink-3)}
+
+  footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--ink-3);font-size:.85rem}
+
+  @media print{
+    .bar,.toc,.copy,.reset{display:none!important}
+    body{background:#fff;color:#000;font-size:11pt}
+    section.step{break-inside:avoid;box-shadow:none;border-color:#bbb}
+    pre{background:#f4f4f4;color:#000;border-color:#ccc}
+    header.hero{background:#fff;color:#000}
+    header.hero h1,header.hero p{color:#000}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="layout">
+    <strong>Suvi Interior — Launch Guide</strong>
+    <div class="progress">
+      <span id="count">0 / 0</span>
+      <span class="track"><span class="fill" id="fill"></span></span>
+      <button class="reset" id="reset" type="button">Reset</button>
+    </div>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="layout">
+    <p class="eyebrow">Production launch &amp; operations</p>
+    <h1>Getting suviinterior.com live</h1>
+    <p>Everything is built, tested and pushed to GitHub. What remains is account setup you must do yourself
+       (Atlas, Vercel, DNS, Google), then a repeatable workflow for shipping design changes safely.</p>
+    <div class="hero-meta">
+      <span class="pill">Repo: h000zcom-cloud/main-suvi-interior</span>
+      <span class="pill">Stack: React + FastAPI + MongoDB</span>
+      <span class="pill">Cost: ₹0 hosting + domain</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+<div class="shell">
+
+  <aside class="toc">
+    <nav>
+      <p class="t">Steps</p>
+      <ol>
+        <li><a href="#s1">Rotate leaked secrets</a></li>
+        <li><a href="#s2">Create the database</a></li>
+        <li><a href="#s3">Deploy on Vercel</a></li>
+        <li><a href="#s4">Verify the deployment</a></li>
+        <li><a href="#s5">Connect suviinterior.com</a></li>
+        <li><a href="#s6">Set up the invoice desk</a></li>
+        <li><a href="#s7">Fill in business facts</a></li>
+        <li><a href="#s8">Submit to Google &amp; Bing</a></li>
+        <li><a href="#s9">Local SEO off-site</a></li>
+        <li><a href="#s10">Design change workflow</a></li>
+        <li><a href="#s11">Troubleshooting</a></li>
+        <li><a href="#s12">Already done for you</a></li>
+      </ol>
+    </nav>
+  </aside>
+
+  <main>
+
+  <!-- 1 -->
+  <section class="step" id="s1">
+    <div class="step-head">
+      <span class="num">01</span>
+      <div class="grow">
+        <p class="meta">5 minutes · do this first</p>
+        <h2>Rotate the leaked secrets</h2>
+      </div>
+      <span class="who you">You</span>
+    </div>
+    <div class="note danger">
+      <b>Both secrets are public</b>
+      <p>The GitHub token and the Atlas database password were pasted into our chat (and one appeared in a
+         screenshot). Treat both as compromised, regardless of how the deployment goes.</p>
+    </div>
+    <ul class="check">
+      <li><input type="checkbox" id="c1a"><label for="c1a">Delete the classic token at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">github.com/settings/tokens</a>. Pushes already use your <code>gh</code> login, so nothing breaks.</label></li>
+      <li><input type="checkbox" id="c1b"><label for="c1b">In Atlas → <b>Database Access</b> → edit <code>h000zcom_db_user</code> → <b>Edit Password</b> → generate a new one and save it in a password manager.</label></li>
+      <li><input type="checkbox" id="c1c"><label for="c1c">Use the new password in Step 3. If you already deployed, update <code>MONGO_URL</code> in Vercel and redeploy.</label></li>
+    </ul>
+  </section>
+
+  <!-- 2 -->
+  <section class="step" id="s2">
+    <div class="step-head">
+      <span class="num">02</span>
+      <div class="grow">
+        <p class="meta">10 minutes · free forever</p>
+        <h2>Create the database</h2>
+      </div>
+      <span class="who you">You</span>
+    </div>
+    <p>MongoDB Atlas free tier. 512&nbsp;MB, never expires, no card required — far more than this workload needs.</p>
+    <ul class="check">
+      <li><input type="checkbox" id="c2a"><label for="c2a">Cluster <code>Cluster0suvi</code> is already created.</label></li>
+      <li><input type="checkbox" id="c2b"><label for="c2b"><b>Network Access</b> → <b>Add IP Address</b> → <b>Allow access from anywhere</b> (<code>0.0.0.0/0</code>) → Confirm.</label></li>
+      <li><input type="checkbox" id="c2c"><label for="c2c">Copy your connection string and paste your new password into it.</label></li>
+    </ul>
+    <div class="note warn">
+      <b>Why allow all IPs?</b>
+      <p>Vercel runs your API on serverless machines with rotating IP addresses, so there is no fixed IP to
+         allow-list. Access still requires the username and password — that is the actual security boundary.</p>
+    </div>
+    <p>Your connection string, with the real username filled in. Replace <code>YOUR_NEW_PASSWORD</code>:</p>
+    <pre><code>mongodb+srv://h000zcom_db_user:YOUR_NEW_PASSWORD@cluster0suvi.j9kb7yi.mongodb.net/?retryWrites=true&amp;w=majority&amp;appName=Cluster0suvi</code></pre>
+  </section>
+
+  <!-- 3 -->
+  <section class="step" id="s3">
+    <div class="step-head">
+      <span class="num">03</span>
+      <div class="grow">
+        <p class="meta">10 minutes</p>
+        <h2>Deploy on Vercel</h2>
+      </div>
+      <span class="who you">You</span>
+    </div>
+    <p>Vercel → <b>Add New</b> → <b>Project</b> → import <code>h000zcom-cloud/main-suvi-interior</code>.</p>
+    <div class="note danger">
+      <b>Change the preset before deploying</b>
+      <p>Your earlier import screen showed <b>Application Preset: FastAPI</b>. That builds only the API and skips
+         the entire website. Set <b>Framework Preset → Other</b> and leave <b>Root Directory</b> as <code>/</code>.
+         The repo's <code>vercel.json</code> builds the site and API together.</p>
+    </div>
+    <p>Expand <b>Environment Variables</b> and add these five for <b>Production</b>:</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Key</th><th>Value</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>MONGO_URL</code></td><td>Your string from Step 2</td><td>Includes the new password</td></tr>
+          <tr><td><code>DB_NAME</code></td><td><code>suvi_interior</code></td><td>Created automatically</td></tr>
+          <tr><td><code>ADMIN_KEY</code></td><td>Long random string</td><td>Legacy enquiry key, not your login</td></tr>
+          <tr><td><code>INVOICE_ADMIN_USERNAME</code></td><td>e.g. <code>admin</code></td><td>Your invoice desk login</td></tr>
+          <tr><td><code>INVOICE_ADMIN_PASSWORD</code></td><td>Strong password</td><td>Save it — used at Step 6</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <b>Leave these unset</b>
+      <p><code>REACT_APP_BACKEND_URL</code>, <code>CORS_ORIGINS</code> and <code>INVOICE_ADMIN_COOKIE_SECURE</code>.
+         The site and API share one origin and default to secure HTTPS cookies. Setting a separate API URL would
+         break admin login, because the session cookie is <code>SameSite=Lax</code> and would not be sent
+         cross-site.</p>
+    </div>
+    <ul class="check">
+      <li><input type="checkbox" id="c3a"><label for="c3a">Framework Preset set to <b>Other</b></label></li>
+      <li><input type="checkbox" id="c3b"><label for="c3b">All five environment variables added</label></li>
+      <li><input type="checkbox" id="c3c"><label for="c3c">Clicked <b>Deploy</b> and the build finished green</label></li>
+    </ul>
+  </section>
+
+  <!-- 4 -->
+  <section class="step" id="s4">
+    <div class="step-head">
+      <span class="num">04</span>
+      <div class="grow">
+        <p class="meta">5 minutes</p>
+        <h2>Verify the deployment</h2>
+      </div>
+      <span class="who you">You</span>
+    </div>
+    <p>Open each on your <code>*.vercel.app</code> URL before touching DNS.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Check</th><th>Expected</th></tr></thead>
+        <tbody>
+          <tr><td><code>/</code></td><td>Homepage with header, hero and footer</td></tr>
+          <tr><td><code>/api/health</code></td><td>A small JSON response</td></tr>
+          <tr><td><code>/services/modular-kitchens</code></td><td>A full service page (proves routing works)</td></tr>
+          <tr><td><code>/sitemap.xml</code></td><td>24 URLs, all on suviinterior.com</td></tr>
+          <tr><td><code>/llms.txt</code></td><td>Studio summary for AI crawlers</td></tr>
+          <tr><td><code>/admin/login</code></td><td>Sign-in screen, dark red theme</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <b>First load can be slow</b>
+      <p>The API sleeps when idle, so the very first request after a pause takes a few seconds to wake. This is
+         normal on serverless and only affects the first visitor after a quiet period.</p>
+    </div>
+    <ul class="check">
+      <li><input type="checkbox" id="c4a"><label for="c4a">Website loads</label></li>
+      <li><input type="checkbox" id="c4b"><label for="c4b">API responds</label></li>
+      <li><input type="checkbox" id="c4c"><label for="c4c">Admin login screen appears</label></li>
+    </ul>
+  </section>
+
+  <!-- 5 -->
+  <section class="step" id="s5">
+    <div class="step-head">
+      <span class="num">05</span>
+      <div class="grow">
+        <p class="meta">15 minutes + DNS propagation</p>
+        <h2>Connect suviinterior.com</h2>
+      </div>
+      <span class="who you">You</span>
+    </div>
+    <p>In Vercel: <b>Project → Settings → Domains</b> → add <code>suviinterior.com</code>, then add
+       <code>www.suviinterior.com</code> and set it to redirect to the apex. Vercel shows the exact DNS records —
+       always trust its panel over any list, including this one.</p>
+    <p>At your domain registrar (Hostinger if the domain lives there), the records are typically:</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Type</th><th>Name</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td><code>A</code></td><td><code>@</code></td><td><code>76.76.21.21</code></td></tr>
+          <tr><td><code>CNAME</code></td><td><code>www</code></td><td><code>cname.vercel-dns.com</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn">
+      <b>Remove conflicting records</b>
+      <p>Delete any existing <code>A</code> or <code>CNAME</code> on <code>@</code> and <code>www</code> that point
+         to old hosting (parking pages, Hostinger defaults). Leave <code>MX</code> records alone or you will break
+         email. DNS can take up to a few hours to propagate; HTTPS is issued automatically once it resolves.</p>
+    </div>
+    <ul class="check">
+      <li><input type="checkbox" id="c5a"><label for="c5a">Apex domain added and verified in Vercel</label></li>
+      <li><input type="checkbox" id="c5b"><label for="c5b"><code>www</code> redirects to the apex</label></li>
+      <li><input type="checkbox" id="c5c"><label for="c5c"><code>https://suviinterior.com</code> loads with a padlock</label></li>
+    </ul>
+  </section>
+
+  <!-- 6 -->
+  <section class="step" id="s6">
+    <div class="step-head">
+      <span class="num">06</span>
+      <div class="grow">
+        <p class="meta">20 minutes · before any real invoice</p>
+        <h2>Set up the invoice desk</h2>
+      </div>
+      <span class="who you">You</span>
+    </div>
+    <p>Go to <code>/admin/login</code> and sign in with the username and password from Step 3.
+       Then open <b>Business settings</b> and complete it before creating anything.</p>
+    <div class="note danger">
+      <b>Nothing legal or financial was pre-filled</b>
+      <p>GSTIN, PAN, bank details, tax rates and prices are all empty by design — inventing them would put wrong
+         numbers on a real tax invoice. Enter them from the client's actual registration documents.</p>
+    </div>
+    <p>Required before issuing:</p>
+    <ul>
+      <li><b>GST registration mode</b> — Unregistered, Regular or Composition. Issuing is blocked until this is an explicit choice.</li>
+      <li><b>Business name, address, state and state code</b> — drives whether tax is CGST/SGST or IGST.</li>
+      <li><b>GSTIN</b> if registered — validated offline for format and checksum, and must match your state code.</li>
+      <li><b>Invoice prefix</b> and default due days.</li>
+      <li><b>Bank details / UPI</b> if you want them printed on invoices.</li>
+    </ul>
+    <div class="note">
+      <b>How numbering works</b>
+      <p>Invoice numbers are allocated only when you issue, never on drafts, and follow the financial year.
+         Issued invoices are frozen: party details, tax and totals cannot be edited afterwards. If settings change
+         a draft's calculation, issuing stops and asks you to review the refreshed draft first.</p>
+    </div>
+    <div class="note warn">
+      <b>E-invoicing is manual</b>
+      <p>There is no live connection to the government IRP. IRN and signed QR fields exist so you can paste values
+         from the official portal. Confirm with your accountant whether e-invoicing applies to this business.</p>
+    </div>
+    <ul class="check">
+      <li><input type="checkbox" id="c6a"><label for="c6a">Logged in successfully</label></li>
+      <li><input type="checkbox" id="c6b"><label for="c6b">Business settings saved with real details</label></li>
+      <li><input type="checkbox" id="c6c"><label for="c6c">Created a test customer, item and draft, then downloaded the PDF</label></li>
+    </ul>
+  </section>
+
+  <!-- 7 -->
+  <section class="step" id="s7">
+    <div class="step-head">
+      <span class="num">07</span>
+      <div class="grow">
+        <p class="meta">10 minutes · unlocks local SEO</p>
+        <h2>Fill in the business facts</h2>
+      </div>
+      <span class="who">Me, once you send them</span>
+    </div>
+    <p>These live in one file — <code>frontend/src/content/site.js</code> — and the SEO schema picks them up
+       automatically. I left each empty rather than guessing, because wrong local data actively hurts map ranking.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Needed</th><th>What it unlocks</th></tr></thead>
+        <tbody>
+          <tr><td>Business hours</td><td>Opening hours in Google results</td></tr>
+          <tr><td>Email address</td><td>Contact completeness</td></tr>
+          <tr><td>Google Business Profile URL</td><td>Links website ↔ map listing</td></tr>
+          <tr><td>Instagram / Facebook URLs</td><td>Confirms the business identity to Google and AI</td></tr>
+          <tr><td>Exact map pin (lat/long)</td><td>Map relevance for nearby searches</td></tr>
+          <tr><td>Which nearby towns you actually serve</td><td>Location pages for Sinnar, Ozar, Niphad, etc.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn">
+      <b>The one thing that limits ranking</b>
+      <p>All eight project pages are placeholders with stock photography — the code marks them
+         <code>isPlaceholder: true</code>. For an interior studio the portfolio <em>is</em> the ranking asset.
+         Real photos of real Nashik homes will outperform every technical tweak on this list. This is the highest
+         priority content task.</p>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="step" id="s8">
+    <div class="step-head">
+      <span class="num">08</span>
+      <div class="grow">
+        <p class="meta">20 minutes · after the domain is live</p>
+        <h2>Submit to Google &amp; Bing</h2>
+      </div>
+      <span class="who you">You</span>
+    </div>
+    <ol>
+      <li>Verify <code>suviinterior.com</code> in <a href="https://search.google.com/search-console" target="_blank" rel="noopener">Google Search Console</a> (DNS TXT verification is easiest since you control DNS).</li>
+      <li>Submit <code>https://suviinterior.com/sitemap.xml</code>.</li>
+      <li>Repeat in <a href="https://www.bing.com/webmasters" target="_blank" rel="noopener">Bing Webmaster Tools</a> — Bing feeds several AI assistants.</li>
+      <li>Run the homepage and one service page through the <a href="https://search.google.com/test/rich-results" target="_blank" rel="noopener">Rich Results Test</a> to confirm the schema is read.</li>
+      <li>Use <b>URL Inspection</b> → <b>Request indexing</b> for the homepage and the six service pages.</li>
+    </ol>
+    <ul class="check">
+      <li><input type="checkbox" id="c8a"><label for="c8a">Search Console verified</label></li>
+      <li><input type="checkbox" id="c8b"><label for="c8b">Sitemap submitted and accepted</label></li>
+      <li><input type="checkbox" id="c8c"><label for="c8c">Bing Webmaster verified</label></li>
+      <li><input type="checkbox" id="c8d"><label for="c8d">Rich Results Test shows LocalBusiness and Service</label></li>
+    </ul>
+  </section>
+
+  <!-- 9 -->
+  <section class="step" id="s9">
+    <div class="step-head">
+      <span class="num">09</span>
+      <div class="grow">
+        <p class="meta">Ongoing · biggest local lever</p>
+        <h2>Local SEO off the website</h2>
+      </div>
+      <span class="who you">You</span>
+    </div>
+    <p>On-page work is done. Local ranking is now mostly decided outside the website.</p>
+    <div class="grid2">
+      <div class="mini">
+        <h3>1. Google Business Profile</h3>
+        <p>The single highest-impact action. Claim it, use the exact address and phone from the website, primary
+           category <b>Interior designer</b>, secondary <b>Furniture manufacturer</b>. Add real photos monthly.</p>
+      </div>
+      <div class="mini">
+        <h3>2. Reviews</h3>
+        <p>Ask after every handover. Reviews that mention the service and area naturally ("modular kitchen in
+           Indira Nagar") help both the map pack and AI answers.</p>
+      </div>
+      <div class="mini">
+        <h3>3. Consistent listings</h3>
+        <p>JustDial, Sulekha, IndiaMART, Houzz India, Bing Places, Apple Business Connect. Name, address and phone
+           must match character for character — mismatches suppress ranking.</p>
+      </div>
+      <div class="mini">
+        <h3>4. Local links</h3>
+        <p>Builders, architects, suppliers and local press. A few genuine Nashik links beat large numbers of
+           generic directory links.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="step" id="s10">
+    <div class="step-head">
+      <span class="num">10</span>
+      <div class="grow">
+        <p class="meta">Your everyday workflow</p>
+        <h2>Shipping design changes safely</h2>
+      </div>
+      <span class="who">Both of us</span>
+    </div>
+    <p>You said the design needs a lot of changes. This is the loop that keeps production safe while you iterate.</p>
+
+    <h3>Run it locally first</h3>
+    <p>Two terminals. Backend (in-memory database, so you cannot touch real data):</p>
+    <pre><code>cd "d:\0 My coding projects\suvi-interior\suvi-interior-latest-version-10092026"
+$env:PYTHONPATH="$PWD\backend"; $env:MONGO_URL='mongodb://localhost:27017'
+$env:DB_NAME='suvi_local'; $env:ADMIN_KEY='local-only'
+$env:CORS_ORIGINS='http://localhost:3000'
+$env:INVOICE_ADMIN_USERNAME='demo-admin'; $env:INVOICE_ADMIN_PASSWORD='Suvi-Demo-2026!'
+$env:INVOICE_ADMIN_COOKIE_SECURE='false'
+.\.venv\Scripts\python.exe -u -c "from mongomock_motor import AsyncMongoMockClient; import os, server; server.client.close(); server.client=AsyncMongoMockClient(); server.db=server.client[os.environ['DB_NAME']]; import uvicorn; uvicorn.run(server.app, host='127.0.0.1', port=8001)"</code></pre>
+    <p>Frontend:</p>
+    <pre><code>cd "d:\0 My coding projects\suvi-interior\suvi-interior-latest-version-10092026\frontend"
+$env:REACT_APP_BACKEND_URL='http://localhost:8001'
+npm.cmd start</code></pre>
+    <p>Open <code>http://localhost:3000</code>. Edits appear instantly.</p>
+
+    <div class="note warn">
+      <b>If you ever need to reinstall packages</b>
+      <p>Use Yarn, not npm — this is a Yarn project and plain <code>npm install</code> fails on a peer-dependency
+         conflict and then produces a broken build:</p>
+      <pre><code>npx --yes yarn@1.22.22 install</code></pre>
+    </div>
+
+    <h3>Where the design lives</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Change</th><th>File</th></tr></thead>
+        <tbody>
+          <tr><td>Business info, phone, address, service areas</td><td><code>frontend/src/content/site.js</code></td></tr>
+          <tr><td>Services copy, FAQs, SEO titles</td><td><code>frontend/src/content/services.js</code></td></tr>
+          <tr><td>Projects and portfolio</td><td><code>frontend/src/content/projects.js</code></td></tr>
+          <tr><td>Images and alt text</td><td><code>frontend/src/content/images.js</code></td></tr>
+          <tr><td>Colours, type, spacing</td><td><code>frontend/src/index.css</code>, <code>atelier.css</code>, <code>tailwind.config.js</code></td></tr>
+          <tr><td>Page layouts</td><td><code>frontend/src/pages/</code></td></tr>
+          <tr><td>Header, footer, menu</td><td><code>frontend/src/components/layout/</code></td></tr>
+          <tr><td>Page titles and descriptions</td><td>page file + <code>frontend/seo/routes.json</code> (keep both in sync)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Ship it</h3>
+    <pre><code>cd "d:\0 My coding projects\suvi-interior\suvi-interior-latest-version-10092026\frontend"
+npm.cmd run build</code></pre>
+    <p>If that prints <code>Compiled successfully.</code>, publish:</p>
+    <pre><code>cd "d:\0 My coding projects\suvi-interior\suvi-interior-latest-version-10092026"
+git add -A
+git commit -m "Describe the design change"
+git push</code></pre>
+    <p>Vercel deploys automatically in a couple of minutes.</p>
+
+    <div class="note ok">
+      <b>Safe iteration habits</b>
+      <p><b>Preview first:</b> push to a branch instead of <code>main</code> and Vercel gives you a private preview
+         URL to review before it reaches visitors.</p>
+      <p><b>Instant undo:</b> Vercel → <b>Deployments</b> → pick the last good one → <b>Promote to Production</b>.
+         Rolls back in seconds without touching code.</p>
+      <p><b>Always build before pushing.</b> A local <code>Compiled successfully.</code> is what stops a broken
+         deploy.</p>
+    </div>
+  </section>
+
+  <!-- 11 -->
+  <section class="step" id="s11">
+    <div class="step-head">
+      <span class="num">11</span>
+      <div class="grow">
+        <p class="meta">If something breaks</p>
+        <h2>Troubleshooting</h2>
+      </div>
+      <span class="who">Reference</span>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td>Build fails with <code>ERESOLVE</code></td><td>npm used instead of Yarn</td><td><code>frontend/yarn.lock</code> is committed for this reason; make sure it was not deleted</td></tr>
+          <tr><td>Only the API deploys, no website</td><td>Framework Preset is FastAPI</td><td>Set it to <b>Other</b> and redeploy</td></tr>
+          <tr><td>Site loads, API calls fail</td><td>Atlas is blocking Vercel</td><td>Allow <code>0.0.0.0/0</code> in Network Access</td></tr>
+          <tr><td>Admin login returns to the login screen</td><td>A separate API origin was configured</td><td>Clear <code>REACT_APP_BACKEND_URL</code> so the API stays same-origin</td></tr>
+          <tr><td><code>500</code> on first request</td><td>Wrong <code>MONGO_URL</code> or password</td><td>Re-copy the string, re-enter the password, redeploy</td></tr>
+          <tr><td>Cannot issue an invoice</td><td>GST registration mode not chosen</td><td>Pick a mode in Business settings</td></tr>
+          <tr><td>Slow first page load</td><td>Serverless cold start</td><td>Expected. A small always-on host removes it if it ever matters</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 12 -->
+  <section class="step" id="s12">
+    <div class="step-head">
+      <span class="num">12</span>
+      <div class="grow">
+        <p class="meta">Reference</p>
+        <h2>Already built and pushed</h2>
+      </div>
+      <span class="who">Done</span>
+    </div>
+    <div class="grid2">
+      <div class="mini">
+        <h3>Invoice desk</h3>
+        <p>Private GST invoicing with cookie sessions and CSRF, customers, catalogue, paise-accurate tax,
+           financial-year numbering at issue, frozen issued invoices, payments and TDS, audit trail and PDFs.</p>
+      </div>
+      <div class="mini">
+        <h3>Deployment</h3>
+        <p>Single Vercel project serving site and API from one origin, Atlas TLS handling, and first-request
+           database setup so cold starts work.</p>
+      </div>
+      <div class="mini">
+        <h3>SEO foundation</h3>
+        <p>24 pages pre-rendered with real titles, descriptions, canonicals and structured data, so Bing and AI
+           crawlers no longer see an empty shell. Generated sitemap and <code>llms.txt</code>.</p>
+      </div>
+      <div class="mini">
+        <h3>Service pages</h3>
+        <p>Six keyword-targeted pages for kitchens, living, bedroom, TV units, furniture and complete interiors,
+           each with FAQs and schema.</p>
+      </div>
+    </div>
+    <div class="note">
+      <b>Still open, your call</b>
+      <p>The public site loads the builder platform's analytics with session recording, which records your client's
+         visitors. I recommend removing it. The social sharing image is also hosted on an external asset host and
+         should become a self-hosted brand image.</p>
+    </div>
+  </section>
+
+  </main>
+</div>
+</div>
+
+<footer>
+  <div class="layout">
+    <p>Suvi Interior · Nashik, Maharashtra · Internal launch guide. Progress is saved in this browser only.</p>
+  </div>
+</footer>
+
+<script>
+  (function(){
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('.check input[type=checkbox]'));
+    var count = document.getElementById('count');
+    var fill = document.getElementById('fill');
+    var KEY = 'suvi-launch-progress';
+
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { saved = {}; }
+
+    function paint(){
+      var done = boxes.filter(function(b){ return b.checked; }).length;
+      count.textContent = done + ' / ' + boxes.length;
+      fill.style.width = boxes.length ? (done / boxes.length * 100) + '%' : '0%';
+    }
+
+    boxes.forEach(function(box){
+      if (saved[box.id]) box.checked = true;
+      box.addEventListener('change', function(){
+        saved[box.id] = box.checked;
+        try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+        paint();
+      });
+    });
+    paint();
+
+    document.getElementById('reset').addEventListener('click', function(){
+      boxes.forEach(function(b){ b.checked = false; });
+      saved = {};
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      paint();
+    });
+
+    document.querySelectorAll('pre').forEach(function(pre){
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'copy';
+      btn.textContent = 'Copy';
+      btn.addEventListener('click', function(){
+        var text = pre.querySelector('code').innerText;
+        function ok(){
+          btn.textContent = 'Copied';
+          btn.classList.add('done');
+          setTimeout(function(){ btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1600);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(ok, function(){});
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); ok(); } catch (e) {}
+          document.body.removeChild(ta);
+        }
+      });
+      pre.appendChild(btn);
+    });
+  })();
+</script>
+</body>
+</html>
