@@ -10,6 +10,7 @@ import asyncio
 import os
 import re
 import logging
+import certifi
 from pathlib import Path
 from urllib.parse import urlsplit
 from pydantic import BaseModel, Field, ConfigDict, BeforeValidator, field_validator
@@ -23,7 +24,13 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+# Managed Atlas clusters (mongodb+srv / TLS) need an explicit CA bundle on some
+# serverless runtimes; certifi provides one. Plain local mongodb:// connections
+# ignore this option, so it is safe to pass only for TLS-enabled URIs.
+_mongo_kwargs = {}
+if mongo_url.startswith("mongodb+srv://") or "tls=true" in mongo_url.lower() or "ssl=true" in mongo_url.lower():
+    _mongo_kwargs["tlsCAFile"] = certifi.where()
+client = AsyncIOMotorClient(mongo_url, **_mongo_kwargs)
 db = client[os.environ['DB_NAME']]
 ADMIN_KEY = os.environ['ADMIN_KEY']
 
