@@ -90,3 +90,8 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Vercel CLI writes .env.local with an OIDC token when linking.
+.env*
+!.env.example
+!**/.env.example
