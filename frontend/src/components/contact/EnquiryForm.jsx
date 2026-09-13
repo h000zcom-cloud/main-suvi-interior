@@ -4,7 +4,7 @@ import { ArrowUpRight } from "lucide-react";
 import { projectTypes, site } from "@/content/site";
 import { cn } from "@/lib/utils";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = `${(process.env.REACT_APP_BACKEND_URL || "").trim().replace(/\/+$/, "")}/api`;
 const initial = (type) => ({ name: "", phone: "", email: "", project_type: type && projectTypes.includes(type) ? type : "", budget: "", message: "" });
 
 export const EnquiryForm = ({ presetType }) => {

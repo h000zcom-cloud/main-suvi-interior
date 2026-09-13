@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
+import asyncio
 import os
 import re
 import logging
@@ -225,10 +226,33 @@ app.add_middleware(
 )
 
 
+_admin_init_lock = asyncio.Lock()
+_admin_initialized = False
+
+
+async def _ensure_admin_initialized():
+    global _admin_initialized
+    if _admin_initialized:
+        return
+    async with _admin_init_lock:
+        if _admin_initialized:
+            return
+        await initialize_invoice_admin()
+        _admin_initialized = True
+
+
+@app.middleware("http")
+async def ensure_admin_initialized(request: Request, call_next):
+    # Serverless runtimes do not reliably run startup lifespan events on every cold
+    # start, so guarantee one-time, idempotent initialization on the first request too.
+    await _ensure_admin_initialized()
+    return await call_next(request)
+
+
 @app.on_event("startup")
 async def startup_invoice_admin():
     # The provider reads the current global, including a mock/replacement installed after import.
-    await initialize_invoice_admin()
+    await _ensure_admin_initialized()
 
 
 @app.on_event("shutdown")
