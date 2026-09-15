@@ -10,6 +10,9 @@ import DashboardPage from "@/admin/pages/DashboardPage";
 import InvoicesPage from "@/admin/pages/InvoicesPage";
 import InvoiceEditorPage from "@/admin/pages/InvoiceEditorPage";
 import InvoiceDetailPage from "@/admin/pages/InvoiceDetailPage";
+import QuotationsPage from "@/admin/pages/QuotationsPage";
+import QuotationEditorPage from "@/admin/pages/QuotationEditorPage";
+import QuotationDetailPage from "@/admin/pages/QuotationDetailPage";
 import CustomersPage from "@/admin/pages/CustomersPage";
 import CataloguePage from "@/admin/pages/CataloguePage";
 import ActivityPage from "@/admin/pages/ActivityPage";
@@ -61,8 +64,8 @@ function AdminRoutes() {
     document.getElementById("seo-jsonld")?.remove();
     document.querySelectorAll('meta[property^="og:"], meta[name^="twitter:"]').forEach((node) => node.remove());
     const description = document.querySelector('meta[name="description"]');
-    if (description) description.content = "Private Suvi Interior invoice administration workspace.";
-    document.title = "Suvi Invoice Desk";
+    if (description) description.content = "Private Suvi Interior document administration workspace.";
+    document.title = "Suvi Document Desk";
 
     if (window.posthog) {
       window.posthog.stopSessionRecording?.();
@@ -92,6 +95,10 @@ function AdminRoutes() {
         <Route path="/admin/invoices/new" element={<InvoiceEditorPage />} />
         <Route path="/admin/invoices/:invoiceId/edit" element={<InvoiceEditorPage />} />
         <Route path="/admin/invoices/:invoiceId" element={<InvoiceDetailPage />} />
+        <Route path="/admin/quotations" element={<QuotationsPage />} />
+        <Route path="/admin/quotations/new" element={<QuotationEditorPage />} />
+        <Route path="/admin/quotations/:quotationId/edit" element={<QuotationEditorPage />} />
+        <Route path="/admin/quotations/:quotationId" element={<QuotationDetailPage />} />
         <Route path="/admin/customers" element={<CustomersPage />} />
         <Route path="/admin/catalogue" element={<CataloguePage />} />
         <Route path="/admin/activity" element={<ActivityPage />} />

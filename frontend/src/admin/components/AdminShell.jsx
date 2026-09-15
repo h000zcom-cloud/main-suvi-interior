@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Activity,
   BookOpen,
   ChevronRight,
   FilePlus2,
+  FileSignature,
   FileText,
   Gauge,
   Globe2,
@@ -27,6 +28,7 @@ import {
 const NAV_ITEMS = [
   { to: "/admin/dashboard", label: "Overview", icon: Gauge },
   { to: "/admin/invoices", label: "Invoices", icon: FileText },
+  { to: "/admin/quotations", label: "Quotations", icon: FileSignature },
   { to: "/admin/customers", label: "Customers", icon: Users },
   { to: "/admin/catalogue", label: "Catalogue", icon: PackageSearch },
   { to: "/admin/activity", label: "Activity", icon: Activity },
@@ -36,6 +38,7 @@ const NAV_ITEMS = [
 const PAGE_TITLES = {
   dashboard: "Overview",
   invoices: "Invoices",
+  quotations: "Quotations",
   customers: "Customers",
   catalogue: "Catalogue",
   activity: "Activity",
@@ -44,7 +47,7 @@ const PAGE_TITLES = {
 
 function Navigation({ onNavigate }) {
   return (
-    <nav className="admin-nav" aria-label="Invoice workspace">
+    <nav className="admin-nav" aria-label="Document workspace">
       <p className="admin-nav__label">Workspace</p>
       {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
         <NavLink
@@ -67,14 +70,32 @@ export default function AdminShell() {
   const { user, logout } = useAdminAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const dirtyEditorRef = useRef(null);
   const section = location.pathname.split("/")[2] || "dashboard";
-  const pageTitle = location.pathname.includes("/new")
-    ? "New invoice"
-    : location.pathname.includes("/edit")
-      ? "Edit draft"
-      : PAGE_TITLES[section] || "Invoice workspace";
+  const quotationContext = section === "quotations";
+  const documentLabel = quotationContext ? "quotation" : "invoice";
+  const pageTitle = location.pathname.endsWith("/new")
+    ? `New ${documentLabel}`
+    : location.pathname.endsWith("/edit")
+      ? `Edit ${documentLabel} draft`
+      : PAGE_TITLES[section] || "Document workspace";
+  const createPath = quotationContext ? "/admin/quotations/new" : "/admin/invoices/new";
+  const CreateIcon = quotationContext ? FileSignature : FilePlus2;
 
   useEffect(() => setMenuOpen(false), [location.pathname]);
+  useEffect(() => {
+    const handleDirtyEditorState = (event) => {
+      const detail = event.detail;
+      if (!detail?.source) return;
+      if (detail.dirty) {
+        dirtyEditorRef.current = detail;
+      } else if (dirtyEditorRef.current?.source === detail.source) {
+        dirtyEditorRef.current = null;
+      }
+    };
+    window.addEventListener("suvi-admin:editor-dirty-state", handleDirtyEditorState);
+    return () => window.removeEventListener("suvi-admin:editor-dirty-state", handleDirtyEditorState);
+  }, []);
   useEffect(() => {
     const mobileViewport = window.matchMedia("(max-width: 63.99rem)");
     const closeOnDesktop = (event) => {
@@ -85,6 +106,8 @@ export default function AdminShell() {
   }, []);
 
   async function handleLogout() {
+    const dirtyEditor = dirtyEditorRef.current;
+    if (dirtyEditor?.dirty && !window.confirm(dirtyEditor.message || "Sign out and discard unsaved changes?")) return;
     setLoggingOut(true);
     try {
       await logout();
@@ -97,13 +120,10 @@ export default function AdminShell() {
     <>
       <div className="admin-brand">
         <span className="admin-brand__mark" aria-hidden="true">S</span>
-        <div>
-          <strong>Suvi Interior</strong>
-          <span>Invoice desk</span>
-        </div>
+        <div><strong>Suvi Interior</strong><span>Document desk</span></div>
       </div>
-      <Link className="admin-new-invoice" to="/admin/invoices/new" onClick={() => setMenuOpen(false)}>
-        <FilePlus2 aria-hidden="true" /> New invoice
+      <Link className="admin-new-invoice admin-new-document" to={createPath} onClick={() => setMenuOpen(false)}>
+        <CreateIcon aria-hidden="true" /> New {documentLabel}
       </Link>
       <Navigation onNavigate={() => setMenuOpen(false)} />
       <div className="admin-sidebar__bottom">
@@ -119,29 +139,17 @@ export default function AdminShell() {
       <aside className="admin-sidebar">{sidebar}</aside>
 
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetContent
-          side="left"
-          className="admin-mobile-drawer__panel"
-          overlayClassName="admin-mobile-drawer__backdrop"
-          closeClassName="admin-mobile-drawer__close"
-        >
+        <SheetContent side="left" className="admin-mobile-drawer__panel" overlayClassName="admin-mobile-drawer__backdrop" closeClassName="admin-mobile-drawer__close">
           <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
-          <SheetDescription className="sr-only">
-            Navigate the private invoice workspace.
-          </SheetDescription>
+          <SheetDescription className="sr-only">Navigate the private document workspace.</SheetDescription>
           {sidebar}
         </SheetContent>
 
         <div className="admin-workspace">
           <div className="admin-topbar">
             <div className="admin-topbar__start">
-              <SheetTrigger asChild>
-                <button className="admin-menu-button" type="button" aria-label="Open navigation"><Menu /></button>
-              </SheetTrigger>
-              <div>
-                <p>Suvi invoice desk</p>
-                <strong>{pageTitle}</strong>
-              </div>
+              <SheetTrigger asChild><button className="admin-menu-button" type="button" aria-label="Open navigation"><Menu /></button></SheetTrigger>
+              <div><p>Suvi document desk</p><strong>{pageTitle}</strong></div>
             </div>
             <div className="admin-user">
               <span className="admin-user__avatar" aria-hidden="true">{(user?.username || "A").slice(0, 1).toUpperCase()}</span>
@@ -149,10 +157,8 @@ export default function AdminShell() {
               <button className="admin-icon-button" type="button" onClick={handleLogout} disabled={loggingOut} aria-label="Sign out"><LogOut /></button>
             </div>
           </div>
-          <main id="admin-main" className="admin-main" tabIndex="-1">
-            <Outlet />
-          </main>
-          <div className="admin-workspace-note"><BookOpen aria-hidden="true" />Amounts and GST are calculated and validated by the server.</div>
+          <main id="admin-main" className="admin-main" tabIndex="-1"><Outlet /></main>
+          <div className="admin-workspace-note"><BookOpen aria-hidden="true" />Document amounts and GST are calculated and validated by the server.</div>
         </div>
       </Sheet>
     </div>

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
-import { BrowserRouter, useLocation } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, useLocation } from "react-router-dom";
 
 function isAdminPath(pathname) {
   return pathname === "/admin" || pathname.startsWith("/admin/");
@@ -41,10 +41,10 @@ function RouteBranch() {
   );
 }
 
+const router = createBrowserRouter([
+  { path: "*", element: <RouteBranch /> },
+]);
+
 export default function App() {
-  return (
-    <BrowserRouter>
-      <RouteBranch />
-    </BrowserRouter>
-  );
+  return <RouterProvider router={router} />;
 }

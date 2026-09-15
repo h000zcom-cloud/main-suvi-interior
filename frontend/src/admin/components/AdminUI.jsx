@@ -12,6 +12,11 @@ import { apiError } from "@/admin/api";
 
 const STATUS_LABELS = {
   draft: "Draft",
+  sent: "Sent",
+  accepted: "Accepted",
+  declined: "Declined",
+  expired: "Expired",
+  converted: "Converted",
   issued: "Issued",
   partially_paid: "Part paid",
   paid: "Paid",
@@ -45,7 +50,7 @@ export function todayInput() {
 
 export function useAdminTitle(title) {
   useEffect(() => {
-    document.title = `${title} · Suvi Invoice Desk`;
+    document.title = `${title} · Suvi Document Desk`;
   }, [title]);
 }
 
@@ -80,43 +85,20 @@ export function ErrorState({ error, onRetry, title = "We couldn't load this view
   return (
     <div className="admin-state admin-state--error" role="alert">
       <AlertTriangle aria-hidden="true" />
-      <div>
-        <h2>{title}</h2>
-        <p>{normalized.message}</p>
-        {normalized.code ? <code>{normalized.code}</code> : null}
-      </div>
-      {onRetry ? (
-        <button className="admin-button admin-button--outline" type="button" onClick={onRetry}>
-          <RefreshCw aria-hidden="true" /> Retry
-        </button>
-      ) : null}
+      <div><h2>{title}</h2><p>{normalized.message}</p>{normalized.code ? <code>{normalized.code}</code> : null}</div>
+      {onRetry ? <button className="admin-button admin-button--outline" type="button" onClick={onRetry}><RefreshCw aria-hidden="true" /> Retry</button> : null}
     </div>
   );
 }
 
 export function EmptyState({ title, copy, action, icon: Icon = Inbox }) {
-  return (
-    <div className="admin-state admin-state--empty">
-      <Icon aria-hidden="true" />
-      <h2>{title}</h2>
-      {copy ? <p>{copy}</p> : null}
-      {action}
-    </div>
-  );
+  return <div className="admin-state admin-state--empty"><Icon aria-hidden="true" /><h2>{title}</h2>{copy ? <p>{copy}</p> : null}{action}</div>;
 }
 
 export function SectionCard({ title, description, action, children, className = "" }) {
   return (
     <section className={`admin-card ${className}`}>
-      {(title || action) ? (
-        <div className="admin-card__header">
-          <div>
-            {title ? <h2>{title}</h2> : null}
-            {description ? <p>{description}</p> : null}
-          </div>
-          {action}
-        </div>
-      ) : null}
+      {(title || action) ? <div className="admin-card__header"><div>{title ? <h2>{title}</h2> : null}{description ? <p>{description}</p> : null}</div>{action}</div> : null}
       <div className="admin-card__body">{children}</div>
     </section>
   );
@@ -133,12 +115,7 @@ export function Field({ label, hint, error, required, className = "", children }
 }
 
 export function InlineNotice({ tone = "info", title, children }) {
-  return (
-    <div className={`admin-notice admin-notice--${tone}`}>
-      {title ? <strong>{title}</strong> : null}
-      <div>{children}</div>
-    </div>
-  );
+  return <div className={`admin-notice admin-notice--${tone}`}>{title ? <strong>{title}</strong> : null}<div>{children}</div></div>;
 }
 
 export function Pagination({ page, pageSize, total, onPageChange }) {
@@ -148,12 +125,8 @@ export function Pagination({ page, pageSize, total, onPageChange }) {
     <nav className="admin-pagination" aria-label="Pagination">
       <p>Page {page} of {pages} · {total} records</p>
       <div>
-        <button type="button" className="admin-icon-button" disabled={page <= 1} onClick={() => onPageChange(page - 1)} aria-label="Previous page">
-          <ChevronLeft aria-hidden="true" />
-        </button>
-        <button type="button" className="admin-icon-button" disabled={page >= pages} onClick={() => onPageChange(page + 1)} aria-label="Next page">
-          <ChevronRight aria-hidden="true" />
-        </button>
+        <button type="button" className="admin-icon-button" disabled={page <= 1} onClick={() => onPageChange(page - 1)} aria-label="Previous page"><ChevronLeft aria-hidden="true" /></button>
+        <button type="button" className="admin-icon-button" disabled={page >= pages} onClick={() => onPageChange(page + 1)} aria-label="Next page"><ChevronRight aria-hidden="true" /></button>
       </div>
     </nav>
   );
@@ -163,15 +136,10 @@ export function ConfirmDialog({ open, onOpenChange, title, description, confirmL
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="admin-dialog admin-dialog--small">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
         <DialogFooter className="admin-dialog__footer">
           <button className="admin-button admin-button--ghost" type="button" onClick={() => onOpenChange(false)} disabled={busy}>Keep it</button>
-          <button className={`admin-button admin-button--${tone}`} type="button" onClick={onConfirm} disabled={busy}>
-            {busy ? <LoaderCircle className="admin-spin" aria-hidden="true" /> : null}{confirmLabel}
-          </button>
+          <button className={`admin-button admin-button--${tone}`} type="button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="admin-spin" aria-hidden="true" /> : null}{confirmLabel}</button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -184,9 +152,7 @@ export function ValidationSummary({ error }) {
   return (
     <div className="admin-validation" role="alert">
       <strong>{normalized.message}</strong>
-      {normalized.errors.length ? (
-        <ul>{normalized.errors.slice(0, 8).map((item, index) => <li key={`${item.field}-${index}`}><b>{item.field}:</b> {item.message}</li>)}</ul>
-      ) : null}
+      {normalized.errors.length ? <ul>{normalized.errors.slice(0, 8).map((item, index) => <li key={`${item.field}-${index}`}><b>{item.field}:</b> {item.message}</li>)}</ul> : null}
     </div>
   );
 }
