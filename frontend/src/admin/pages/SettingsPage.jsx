@@ -42,6 +42,13 @@ function text(value) {
   return value === null || value === undefined ? "" : String(value);
 }
 
+function normalizeDefaultDueDays(value) {
+  const normalized = text(value).trim();
+  if (!normalized) return 0;
+  const dueDays = Number(normalized);
+  return Number.isInteger(dueDays) && dueDays >= 0 && dueDays <= 365 ? dueDays : 0;
+}
+
 function formFromSettings(settings = {}) {
   const address = settings.address || {};
   const bank = settings.bank || {};
@@ -67,10 +74,7 @@ function formFromSettings(settings = {}) {
     pan: text(settings.pan),
     gst_registration_mode: text(settings.gst_registration_mode),
     invoice_prefix: text(settings.invoice_prefix),
-    default_due_days:
-      settings.default_due_days === null || settings.default_due_days === undefined
-        ? ""
-        : String(settings.default_due_days),
+    default_due_days: String(normalizeDefaultDueDays(settings.default_due_days)),
     default_terms: text(settings.default_terms),
     default_notes: text(settings.default_notes),
     round_to_rupee: settings.round_to_rupee === true,
@@ -116,7 +120,7 @@ function settingsInputPayload(form) {
     pan: clean(form.pan).toUpperCase(),
     gst_registration_mode: clean(form.gst_registration_mode),
     invoice_prefix: clean(form.invoice_prefix).toUpperCase(),
-    default_due_days: Number(form.default_due_days),
+    default_due_days: normalizeDefaultDueDays(form.default_due_days),
     default_terms: clean(form.default_terms),
     default_notes: clean(form.default_notes),
     round_to_rupee: form.round_to_rupee === true,
@@ -137,7 +141,6 @@ function settingsInputPayload(form) {
 
 function validateSettings(form, registrationModes) {
   const errors = {};
-  const dueDays = Number(form.default_due_days);
 
   if (!clean(form.display_name)) errors.display_name = "Display name is required.";
   if (!clean(form.trade_name)) errors.trade_name = "Trade name is required.";
@@ -152,12 +155,6 @@ function validateSettings(form, registrationModes) {
     errors.invoice_prefix = "Invoice prefix is required.";
   } else if (!/^[A-Za-z0-9-]+$/.test(clean(form.invoice_prefix))) {
     errors.invoice_prefix = "Use only letters, numbers, and hyphens.";
-  }
-
-  if (form.default_due_days === "") {
-    errors.default_due_days = "Default due days is required.";
-  } else if (!Number.isInteger(dueDays) || dueDays < 0 || dueDays > 365) {
-    errors.default_due_days = "Enter a whole number from 0 to 365.";
   }
 
   if (form.address.state_code && !/^\d{2}$/.test(form.address.state_code)) {
@@ -815,7 +812,7 @@ export default function SettingsPage() {
           <SectionCard
             className="admin-settings-card admin-settings-card--invoice"
             title="Invoice defaults"
-            description="Defaults applied when a new invoice is created."
+            description="Prefix, notes, terms, and rounding defaults. Due dates are set per invoice and start blank."
             action={<FileText className="admin-card__icon" aria-hidden="true" />}
           >
             <div className="admin-settings-grid admin-settings-grid--two">
@@ -830,21 +827,9 @@ export default function SettingsPage() {
                   aria-invalid={Boolean(errorFor("invoice_prefix"))}
                 />
               </Field>
-              <Field label="Default due days" required error={errorFor("default_due_days")}>
+              <label className="admin-check admin-check--panel admin-settings-field--full">
                 <input
-                  type="number"
-                  name="default_due_days"
-                  value={form.default_due_days}
-                  onChange={updateTopLevel}
-                  min={0}
-                  max={365}
-                  step={1}
-                  inputMode="numeric"
-                  aria-invalid={Boolean(errorFor("default_due_days"))}
-                />
-              </Field>
-              <label className="admin-checkbox admin-settings-field--full">
-                <input
+                  className="admin-checkbox"
                   type="checkbox"
                   name="round_to_rupee"
                   checked={form.round_to_rupee}
@@ -907,8 +892,9 @@ export default function SettingsPage() {
               </p>
             </InlineNotice>
             <div className="admin-settings-grid admin-settings-grid--two">
-              <label className="admin-checkbox admin-settings-field--full">
+              <label className="admin-check admin-check--panel admin-settings-field--full">
                 <input
+                  className="admin-checkbox"
                   type="checkbox"
                   name="e_invoice_applicable"
                   checked={form.e_invoice_applicable}

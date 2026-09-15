@@ -5,6 +5,7 @@ import {
   CloudOff,
   FilePenLine,
   FilePlus2,
+  FileSignature,
   IndianRupee,
   ReceiptText,
   UserPlus,
@@ -26,6 +27,7 @@ import {
 } from "@/admin/components/AdminUI";
 
 const AGEING_ORDER = ["current", "1_30", "31_60", "61_90", "over_90"];
+const QUOTATION_STATUS_ORDER = ["draft", "sent", "accepted", "declined", "expired", "converted"];
 
 function formatCount(value) {
   return new Intl.NumberFormat("en-IN").format(Number(value) || 0);
@@ -39,40 +41,30 @@ function customerName(invoice) {
   return invoice.customer_snapshot?.display_name || invoice.customer_snapshot?.legal_name || "Customer unavailable";
 }
 
+function quotationLabel(quotation) {
+  return quotation.quotation_number || "Draft quotation";
+}
+
+function quotationCustomerName(quotation) {
+  const customer = quotation.customer_snapshot || quotation.draft_input?.customer_snapshot || {};
+  return customer.display_name || customer.legal_name || "Customer unavailable";
+}
+
 function InvoiceTable({ invoices }) {
   return (
     <div className="admin-recent-invoices__table-wrap">
       <table className="admin-table admin-recent-invoices__table">
         <caption className="admin-table__caption">Ten most recently created invoices</caption>
-        <thead>
-          <tr>
-            <th scope="col">Invoice</th>
-            <th scope="col">Customer</th>
-            <th scope="col">Invoice date</th>
-            <th scope="col">Due date</th>
-            <th scope="col">Status</th>
-            <th scope="col">Total</th>
-            <th scope="col">Balance</th>
-            <th scope="col">View</th>
-          </tr>
-        </thead>
+        <thead><tr><th scope="col">Invoice</th><th scope="col">Customer</th><th scope="col">Invoice date</th><th scope="col">Due date</th><th scope="col">Status</th><th scope="col">Total</th><th scope="col">Balance</th><th scope="col">View</th></tr></thead>
         <tbody>
           {invoices.map((invoice) => {
             const label = invoiceLabel(invoice);
             return (
               <tr key={invoice.id}>
                 <th scope="row"><Link className="admin-table__primary-link" to={`/admin/invoices/${invoice.id}`}>{label}</Link></th>
-                <td>{customerName(invoice)}</td>
-                <td>{formatDate(invoice.invoice_date)}</td>
-                <td>{formatDate(invoice.due_date)}</td>
-                <td><StatusBadge status={invoice.status} /></td>
-                <td>{formatMoney(invoice.totals?.grand_total_paise, invoice.totals?.grand_total_display)}</td>
-                <td>{formatMoney(invoice.totals?.balance_paise, invoice.totals?.balance_display)}</td>
-                <td>
-                  <Link className="admin-icon-button" to={`/admin/invoices/${invoice.id}`} aria-label={`View ${label}`}>
-                    <ArrowRight aria-hidden="true" />
-                  </Link>
-                </td>
+                <td>{customerName(invoice)}</td><td>{formatDate(invoice.invoice_date)}</td><td>{invoice.due_date ? formatDate(invoice.due_date) : ""}</td><td><StatusBadge status={invoice.status} /></td>
+                <td>{formatMoney(invoice.totals?.grand_total_paise, invoice.totals?.grand_total_display)}</td><td>{formatMoney(invoice.totals?.balance_paise, invoice.totals?.balance_display)}</td>
+                <td><Link className="admin-icon-button" to={`/admin/invoices/${invoice.id}`} aria-label={`View ${label}`}><ArrowRight aria-hidden="true" /></Link></td>
               </tr>
             );
           })}
@@ -90,22 +82,9 @@ function InvoiceCards({ invoices }) {
         return (
           <li className="admin-invoice-card" key={invoice.id}>
             <article>
-              <div className="admin-invoice-card__header">
-                <div>
-                  <Link className="admin-invoice-card__title" to={`/admin/invoices/${invoice.id}`}>{label}</Link>
-                  <p>{customerName(invoice)}</p>
-                </div>
-                <StatusBadge status={invoice.status} />
-              </div>
-              <dl className="admin-invoice-card__facts">
-                <div><dt>Invoice date</dt><dd>{formatDate(invoice.invoice_date)}</dd></div>
-                <div><dt>Due date</dt><dd>{formatDate(invoice.due_date)}</dd></div>
-                <div><dt>Total</dt><dd>{formatMoney(invoice.totals?.grand_total_paise, invoice.totals?.grand_total_display)}</dd></div>
-                <div><dt>Balance</dt><dd>{formatMoney(invoice.totals?.balance_paise, invoice.totals?.balance_display)}</dd></div>
-              </dl>
-              <Link className="admin-invoice-card__link" to={`/admin/invoices/${invoice.id}`}>
-                View invoice <ArrowRight aria-hidden="true" />
-              </Link>
+              <div className="admin-invoice-card__header"><div><Link className="admin-invoice-card__title" to={`/admin/invoices/${invoice.id}`}>{label}</Link><p>{customerName(invoice)}</p></div><StatusBadge status={invoice.status} /></div>
+              <dl className="admin-invoice-card__facts"><div><dt>Invoice date</dt><dd>{formatDate(invoice.invoice_date)}</dd></div>{invoice.due_date ? <div><dt>Due date</dt><dd>{formatDate(invoice.due_date)}</dd></div> : null}<div><dt>Total</dt><dd>{formatMoney(invoice.totals?.grand_total_paise, invoice.totals?.grand_total_display)}</dd></div><div><dt>Balance</dt><dd>{formatMoney(invoice.totals?.balance_paise, invoice.totals?.balance_display)}</dd></div></dl>
+              <Link className="admin-invoice-card__link" to={`/admin/invoices/${invoice.id}`}>View invoice <ArrowRight aria-hidden="true" /></Link>
             </article>
           </li>
         );
@@ -114,38 +93,70 @@ function InvoiceCards({ invoices }) {
   );
 }
 
+function QuotationPipeline({ query }) {
+  const dashboard = query.data;
+  const recent = Array.isArray(dashboard?.recent_quotations) ? dashboard.recent_quotations.slice(0, 5) : [];
+  return (
+    <SectionCard
+      className="admin-quotation-pipeline"
+      title="Quotation pipeline"
+      description="Nonfinancial proposal counts only. Quotation values are excluded from invoice revenue, receivables, and ageing."
+      action={<Link className="admin-button admin-button--ghost" to="/admin/quotations">All quotations <ArrowRight aria-hidden="true" /></Link>}
+    >
+      {query.isPending && !dashboard ? <LoadingState compact label="Loading quotation pipeline…" /> : null}
+      {query.isError ? (
+        <InlineNotice tone="warning" title="Quotation pipeline unavailable">
+          <div className="admin-refresh-warning__content"><p>{dashboard ? "Retained quotation counts remain visible." : "Invoice reporting is unaffected; only quotation pipeline data failed to load."}</p><button className="admin-button admin-button--outline" type="button" onClick={() => query.refetch()} disabled={query.isFetching}>Retry</button></div>
+        </InlineNotice>
+      ) : null}
+      {dashboard ? (
+        <div className="admin-quotation-pipeline__content" aria-busy={query.isFetching}>
+          <div className="admin-quotation-pipeline__summary">
+            <strong>{formatCount(dashboard.total)}</strong>
+            <span>Total quotation records</span>
+            <small>{query.isFetching ? "Refreshing…" : `Updated ${formatDate(dashboard.generated_at)}`}</small>
+          </div>
+          <dl className="admin-quotation-pipeline__counts">
+            {QUOTATION_STATUS_ORDER.map((status) => (
+              <div key={status}><dt><StatusBadge status={status} /></dt><dd>{formatCount(dashboard.counts?.[status])}</dd></div>
+            ))}
+          </dl>
+          <div className="admin-quotation-pipeline__recent-wrap">
+            <div className="admin-quotation-pipeline__recent-heading"><h3>Recent quotations</h3><span>Latest {recent.length}</span></div>
+            {recent.length ? (
+              <ul className="admin-quotation-pipeline__recent">
+                {recent.map((quotation) => (
+                  <li key={quotation.id}>
+                    <div><Link className="admin-table__primary-link" to={`/admin/quotations/${quotation.id}`}>{quotationLabel(quotation)}</Link><span>{quotationCustomerName(quotation)}</span></div>
+                    <div className="admin-quotation-pipeline__dates"><span>{formatDate(quotation.quotation_date)}</span><small>Valid to {formatDate(quotation.valid_until)}</small></div>
+                    <StatusBadge status={quotation.status} />
+                    <Link className="admin-icon-button" to={`/admin/quotations/${quotation.id}`} aria-label={`View ${quotationLabel(quotation)}`}><ArrowRight aria-hidden="true" /></Link>
+                  </li>
+                ))}
+              </ul>
+            ) : <div className="admin-section-empty"><FileSignature aria-hidden="true" /><p>No quotation records yet.</p></div>}
+          </div>
+        </div>
+      ) : null}
+    </SectionCard>
+  );
+}
+
 export default function DashboardPage() {
   useAdminTitle("Overview");
-  const dashboardQuery = useQuery({
-    queryKey: ["admin", "dashboard"],
-    queryFn: adminApi.dashboard,
-  });
-  const metadataQuery = useQuery({
-    queryKey: ["admin", "metadata"],
-    queryFn: adminApi.metadata,
-  });
+  const dashboardQuery = useQuery({ queryKey: ["admin", "dashboard"], queryFn: adminApi.dashboard });
+  const metadataQuery = useQuery({ queryKey: ["admin", "metadata"], queryFn: adminApi.metadata });
+  const quotationDashboardQuery = useQuery({ queryKey: ["admin", "quotation-dashboard"], queryFn: adminApi.quotationDashboard });
 
   if (dashboardQuery.isPending || metadataQuery.isPending) {
-    return (
-      <div className="admin-page admin-dashboard">
-        <PageHeader eyebrow="Invoice workspace" title="Overview" description="A current view of billing and collections." />
-        <LoadingState label="Preparing your invoice overview…" />
-      </div>
-    );
+    return <div className="admin-page admin-dashboard"><PageHeader eyebrow="Invoice workspace" title="Overview" description="A current view of billing and collections." /><LoadingState label="Preparing your invoice overview…" /></div>;
   }
 
   if (dashboardQuery.isError || metadataQuery.isError) {
     return (
       <div className="admin-page admin-dashboard">
         <PageHeader eyebrow="Invoice workspace" title="Overview" description="A current view of billing and collections." />
-        <ErrorState
-          error={dashboardQuery.error || metadataQuery.error}
-          title="We couldn't prepare the overview"
-          onRetry={() => {
-            dashboardQuery.refetch();
-            metadataQuery.refetch();
-          }}
-        />
+        <ErrorState error={dashboardQuery.error || metadataQuery.error} title="We couldn't prepare the overview" onRetry={() => { dashboardQuery.refetch(); metadataQuery.refetch(); }} />
       </div>
     );
   }
@@ -165,148 +176,52 @@ export default function DashboardPage() {
   const irpConnected = capabilities.irp_connected === true;
   const manualEInvoiceEntry = capabilities.e_invoice_metadata_entry === "manual";
   const kpis = [
-    {
-      key: "receivable",
-      label: "Receivable",
-      value: formatMoney(dashboard.receivable_paise, dashboard.receivable_display),
-      description: "Still to collect on issued, non-cancelled invoices.",
-      icon: WalletCards,
-    },
-    {
-      key: "revenue",
-      label: "Invoiced revenue",
-      value: formatMoney(dashboard.revenue_paise, dashboard.revenue_display),
-      description: "Total invoice value, excluding drafts and cancellations.",
-      icon: IndianRupee,
-    },
-    {
-      key: "overdue",
-      label: "Overdue",
-      value: formatMoney(dashboard.overdue_paise, dashboard.overdue_display),
-      description: `${formatCount(dashboard.overdue_count)} ${Number(dashboard.overdue_count) === 1 ? "invoice is" : "invoices are"} past due with a balance.`,
-      icon: Clock3,
-    },
-    {
-      key: "drafts",
-      label: "Drafts",
-      value: formatCount(dashboard.draft_count),
-      description: "Saved invoices that have not been issued yet.",
-      icon: FilePenLine,
-    },
+    { key: "receivable", label: "Receivable", value: formatMoney(dashboard.receivable_paise, dashboard.receivable_display), description: "Still to collect on issued, non-cancelled invoices.", icon: WalletCards },
+    { key: "revenue", label: "Invoiced revenue", value: formatMoney(dashboard.revenue_paise, dashboard.revenue_display), description: "Total invoice value, excluding drafts and cancellations.", icon: IndianRupee },
+    { key: "overdue", label: "Overdue", value: formatMoney(dashboard.overdue_paise, dashboard.overdue_display), description: `${formatCount(dashboard.overdue_count)} ${Number(dashboard.overdue_count) === 1 ? "invoice is" : "invoices are"} past due with a balance.`, icon: Clock3 },
+    { key: "drafts", label: "Drafts", value: formatCount(dashboard.draft_count), description: "Saved invoices that have not been issued yet.", icon: FilePenLine },
   ];
 
   return (
     <div className="admin-page admin-dashboard">
       <PageHeader
-        eyebrow="Invoice workspace"
+        eyebrow="Document workspace"
         title="Overview"
-        description="Track invoice value, outstanding collections, and the work waiting for your attention."
+        description="Track invoice value and collections alongside a separate, nonfinancial quotation pipeline."
         actions={(
           <>
-            <Link className="admin-button admin-button--outline" to="/admin/customers">
-              <UserPlus aria-hidden="true" /> New customer
-            </Link>
-            <Link className="admin-button admin-button--primary" to="/admin/invoices/new">
-              <FilePlus2 aria-hidden="true" /> New invoice
-            </Link>
+            <Link className="admin-button admin-button--outline" to="/admin/customers"><UserPlus aria-hidden="true" /> New customer</Link>
+            <Link className="admin-button admin-button--outline" to="/admin/quotations/new"><FileSignature aria-hidden="true" /> New quotation</Link>
+            <Link className="admin-button admin-button--primary" to="/admin/invoices/new"><FilePlus2 aria-hidden="true" /> New invoice</Link>
           </>
         )}
       />
-
-      <p className="admin-dashboard__freshness" aria-live="polite">
-        {dashboardQuery.isFetching || metadataQuery.isFetching ? "Refreshing overview…" : `Updated ${formatDate(dashboard.generated_at)}`}
-      </p>
+      <p className="admin-dashboard__freshness" aria-live="polite">{dashboardQuery.isFetching || metadataQuery.isFetching ? "Refreshing invoice overview…" : `Invoice reporting updated ${formatDate(dashboard.generated_at)}`}</p>
 
       <section className="admin-kpi-grid" aria-label="Invoice summary">
-        {kpis.map(({ key, label, value, description, icon: Icon }) => (
-          <article className={`admin-kpi admin-kpi--${key}`} key={key}>
-            <div className="admin-kpi__topline">
-              <span className="admin-kpi__icon" aria-hidden="true"><Icon /></span>
-              <span className="admin-kpi__label">{label}</span>
-            </div>
-            <strong className="admin-kpi__value">{value}</strong>
-            <p>{description}</p>
-          </article>
-        ))}
+        {kpis.map(({ key, label, value, description, icon: Icon }) => <article className={`admin-kpi admin-kpi--${key}`} key={key}><div className="admin-kpi__topline"><span className="admin-kpi__icon" aria-hidden="true"><Icon /></span><span className="admin-kpi__label">{label}</span></div><strong className="admin-kpi__value">{value}</strong><p>{description}</p></article>)}
       </section>
 
       <div className="admin-dashboard__grid">
-        <SectionCard
-          className="admin-ageing"
-          title="Receivables ageing"
-          description="Outstanding balances grouped by how far they are from their due date."
-        >
+        <SectionCard className="admin-ageing" title="Receivables ageing" description="Outstanding balances grouped by how far they are from their due date.">
           <ul className="admin-ageing__list">
-            {ageingBuckets.map((bucket) => (
-              <li className="admin-ageing__item" key={bucket.key}>
-                <div className="admin-ageing__summary">
-                  <div>
-                    <strong>{bucket.label}</strong>
-                    <span>{formatCount(bucket.count)} {bucket.count === 1 ? "open invoice" : "open invoices"}</span>
-                  </div>
-                  <b>{formatMoney(bucket.amount_paise, bucket.amount_display)}</b>
-                </div>
-                <progress
-                  className="admin-ageing__progress"
-                  max={maxAgeingAmount}
-                  value={bucket.amount_paise}
-                  aria-label={`${bucket.label}: ${formatMoney(bucket.amount_paise, bucket.amount_display)}`}
-                />
-              </li>
-            ))}
+            {ageingBuckets.map((bucket) => <li className="admin-ageing__item" key={bucket.key}><div className="admin-ageing__summary"><div><strong>{bucket.label}</strong><span>{formatCount(bucket.count)} {bucket.count === 1 ? "open invoice" : "open invoices"}</span></div><b>{formatMoney(bucket.amount_paise, bucket.amount_display)}</b></div><progress className="admin-ageing__progress" max={maxAgeingAmount} value={bucket.amount_paise} aria-label={`${bucket.label}: ${formatMoney(bucket.amount_paise, bucket.amount_display)}`} /></li>)}
           </ul>
-          {Number(dashboard.receivable_paise) === 0 ? (
-            <p className="admin-ageing__clear">There are no outstanding receivables to collect.</p>
-          ) : null}
+          {Number(dashboard.receivable_paise) === 0 ? <p className="admin-ageing__clear">There are no outstanding receivables to collect.</p> : null}
         </SectionCard>
 
         <SectionCard className="admin-compliance" title="E-invoice connection" description="Current Invoice Registration Portal capability.">
           <InlineNotice tone={!irpConnected || manualEInvoiceEntry ? "warning" : "success"} title={!irpConnected ? "IRP not connected" : manualEInvoiceEntry ? "Manual metadata entry" : "IRP connected"}>
-            <div className="admin-compliance__message">
-              <CloudOff aria-hidden="true" />
-              <p>
-                {!irpConnected
-                  ? "This workspace does not submit invoices directly to the IRP. Register externally, then enter the IRN, acknowledgement, and QR metadata manually on the issued invoice."
-                  : manualEInvoiceEntry
-                    ? "E-invoice registration metadata is entered manually after registration."
-                    : "Direct IRP capabilities are available for this workspace."}
-              </p>
-            </div>
+            <div className="admin-compliance__message"><CloudOff aria-hidden="true" /><p>{!irpConnected ? "This workspace does not submit invoices directly to the IRP. Register externally, then enter the IRN, acknowledgement, and QR metadata manually on the issued invoice." : manualEInvoiceEntry ? "E-invoice registration metadata is entered manually after registration." : "Direct IRP capabilities are available for this workspace."}</p></div>
           </InlineNotice>
-          <dl className="admin-compliance__facts">
-            <div><dt>IRP connection</dt><dd>{irpConnected ? "Connected" : "Not connected"}</dd></div>
-            <div><dt>E-invoice metadata</dt><dd>{manualEInvoiceEntry ? "Manual entry" : "Connected workflow"}</dd></div>
-          </dl>
+          <dl className="admin-compliance__facts"><div><dt>IRP connection</dt><dd>{irpConnected ? "Connected" : "Not connected"}</dd></div><div><dt>E-invoice metadata</dt><dd>{manualEInvoiceEntry ? "Manual entry" : "Connected workflow"}</dd></div></dl>
         </SectionCard>
       </div>
 
-      <SectionCard
-        className="admin-recent-invoices"
-        title="Recent invoices"
-        description="The ten most recently created invoice records, including drafts."
-        action={recentInvoices.length ? (
-          <Link className="admin-button admin-button--ghost" to="/admin/invoices">
-            All invoices <ArrowRight aria-hidden="true" />
-          </Link>
-        ) : null}
-      >
-        {recentInvoices.length ? (
-          <>
-            <InvoiceTable invoices={recentInvoices} />
-            <InvoiceCards invoices={recentInvoices} />
-          </>
-        ) : (
-          <EmptyState
-            icon={ReceiptText}
-            title="No invoices yet"
-            copy="Create your first draft to begin tracking billing and collections."
-            action={(
-              <Link className="admin-button admin-button--primary" to="/admin/invoices/new">
-                <FilePlus2 aria-hidden="true" /> Create invoice
-              </Link>
-            )}
-          />
-        )}
+      <QuotationPipeline query={quotationDashboardQuery} />
+
+      <SectionCard className="admin-recent-invoices" title="Recent invoices" description="The ten most recently created invoice records, including drafts." action={recentInvoices.length ? <Link className="admin-button admin-button--ghost" to="/admin/invoices">All invoices <ArrowRight aria-hidden="true" /></Link> : null}>
+        {recentInvoices.length ? <><InvoiceTable invoices={recentInvoices} /><InvoiceCards invoices={recentInvoices} /></> : <EmptyState icon={ReceiptText} title="No invoices yet" copy="Create your first draft to begin tracking billing and collections." action={<Link className="admin-button admin-button--primary" to="/admin/invoices/new"><FilePlus2 aria-hidden="true" /> Create invoice</Link>} />}
       </SectionCard>
     </div>
   );

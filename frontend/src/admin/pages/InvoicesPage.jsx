@@ -70,10 +70,12 @@ function InvoiceMobileCard({ invoice }) {
           <dt>Invoice date</dt>
           <dd>{formatDate(invoice.invoice_date)}</dd>
         </div>
-        <div className="admin-invoice-card__detail">
-          <dt>Due date</dt>
-          <dd>{formatDate(invoice.due_date)}</dd>
-        </div>
+        {invoice.due_date ? (
+          <div className="admin-invoice-card__detail">
+            <dt>Due date</dt>
+            <dd>{formatDate(invoice.due_date)}</dd>
+          </div>
+        ) : null}
         <div className="admin-invoice-card__detail">
           <dt>Total</dt>
           <dd>{formatMoney(totals.grand_total_paise, totals.grand_total_display)}</dd>
@@ -268,7 +270,7 @@ export default function InvoicesPage() {
                           </td>
                           <td data-label="Invoice / due">
                             <span>{formatDate(invoice.invoice_date)}</span>
-                            <small>Due {formatDate(invoice.due_date)}</small>
+                            {invoice.due_date ? <small>Due {formatDate(invoice.due_date)}</small> : null}
                           </td>
                           <td data-label="Total">{formatMoney(totals.grand_total_paise, totals.grand_total_display)}</td>
                           <td data-label="Balance">{formatMoney(totals.balance_paise, totals.balance_display)}</td>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import hmac
 import inspect
@@ -25,8 +26,10 @@ from pymongo.errors import DuplicateKeyError
 
 try:
     from invoice_pdf import SignedQrEncodingError, preflight_signed_qr_data, render_invoice_pdf
+    from quotation_pdf import render_quotation_pdf
 except ImportError:  # Supports package-style imports in tooling.
     from .invoice_pdf import SignedQrEncodingError, preflight_signed_qr_data, render_invoice_pdf
+    from .quotation_pdf import render_quotation_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -554,7 +557,7 @@ class InvoiceLineInput(APIModel):
 class InvoiceDraftInput(APIModel):
     customer_snapshot: InvoiceCustomerSnapshot
     invoice_date: date
-    due_date: date
+    due_date: date | None = None
     place_of_supply: StateReference
     lines: list[InvoiceLineInput] = Field(min_length=1, max_length=200)
     project_reference: str = Field(default="", max_length=240)
@@ -575,7 +578,7 @@ class InvoiceDraftInput(APIModel):
 
     @model_validator(mode="after")
     def validate_dates_and_adjustment(self) -> "InvoiceDraftInput":
-        if self.due_date < self.invoice_date:
+        if self.due_date is not None and self.due_date < self.invoice_date:
             raise ValueError("due_date cannot be earlier than invoice_date")
         if self.post_tax_adjustment_amount != ZERO and not self.post_tax_adjustment_label:
             raise ValueError("post_tax_adjustment_label is required for a non-zero adjustment")
@@ -1004,9 +1007,27 @@ async def initialize_invoice_admin(provider: DatabaseProvider | None = None) -> 
         (db.invoice_catalogue, [("active", ASCENDING), ("updated_at", DESCENDING)], {"name": "catalogue_active_updated"}),
         (db.invoice_catalogue, [("name", ASCENDING)], {"name": "catalogue_name"}),
         (db.invoices, [("invoice_number", ASCENDING)], {"unique": True, "sparse": True, "name": "invoice_number_unique"}),
+        (
+            db.invoices,
+            [("source_quotation_id", ASCENDING)],
+            {"unique": True, "sparse": True, "name": "invoice_source_quotation_unique"},
+        ),
         (db.invoices, [("status", ASCENDING), ("due_date", ASCENDING)], {"name": "invoice_status_due"}),
         (db.invoices, [("invoice_date", DESCENDING)], {"name": "invoice_date_desc"}),
         (db.invoices, [("customer_id", ASCENDING), ("created_at", DESCENDING)], {"name": "invoice_customer_created"}),
+        (
+            db.quotations,
+            [("quotation_number", ASCENDING)],
+            {"unique": True, "sparse": True, "name": "quotation_number_unique"},
+        ),
+        (
+            db.quotations,
+            [("duplicate_operation_id", ASCENDING)],
+            {"unique": True, "sparse": True, "name": "quotation_duplicate_operation_unique"},
+        ),
+        (db.quotations, [("status", ASCENDING), ("valid_until", ASCENDING)], {"name": "quotation_status_validity"}),
+        (db.quotations, [("quotation_date", DESCENDING)], {"name": "quotation_date_desc"}),
+        (db.quotations, [("customer_id", ASCENDING), ("created_at", DESCENDING)], {"name": "quotation_customer_created"}),
         (db.invoice_audit, [("created_at", DESCENDING)], {"name": "audit_created_desc"}),
         (db.invoice_audit, [("entity_type", ASCENDING), ("entity_id", ASCENDING)], {"name": "audit_entity"}),
     ]
@@ -1356,7 +1377,7 @@ def _calculate_invoice(payload: InvoiceDraftInput, settings: dict[str, Any]) -> 
         "customer_snapshot": customer_data,
         "customer_id": ObjectId(payload.customer_snapshot.customer_id) if payload.customer_snapshot.customer_id else None,
         "invoice_date": _at_utc_midnight(payload.invoice_date),
-        "due_date": _at_utc_midnight(payload.due_date),
+        "due_date": _at_utc_midnight(payload.due_date) if payload.due_date is not None else None,
         "place_of_supply": payload.place_of_supply.model_dump(mode="json"),
         "lines": calculated_lines,
         "project_reference": payload.project_reference,
@@ -1764,17 +1785,26 @@ async def list_invoices(
     del auth
     db = _database()
     query: dict[str, Any] = {}
+    and_conditions: list[dict[str, Any]] = []
     today_start = _at_utc_midnight(_business_date())
     if status == "overdue":
         query.update(
             {
                 "status": {"$in": ["issued", "partially_paid", "overdue"]},
-                "due_date": {"$lt": today_start},
+                "due_date": {"$type": "date", "$lt": today_start},
                 "totals.balance_paise": {"$gt": 0},
             }
         )
     elif status in {"issued", "partially_paid"}:
-        query.update({"status": status, "due_date": {"$gte": today_start}})
+        query["status"] = status
+        and_conditions.append(
+            {
+                "$or": [
+                    {"due_date": None},
+                    {"due_date": {"$gte": today_start}},
+                ]
+            }
+        )
     elif status:
         query["status"] = status
     if customer_id:
@@ -1788,13 +1818,19 @@ async def list_invoices(
         query["invoice_date"] = date_query
     if q:
         pattern = re.compile(re.escape(q), re.IGNORECASE)
-        query["$or"] = [
-            {"invoice_number": pattern},
-            {"customer_snapshot.display_name": pattern},
-            {"customer_snapshot.legal_name": pattern},
-            {"project_reference": pattern},
-            {"po_reference": pattern},
-        ]
+        and_conditions.append(
+            {
+                "$or": [
+                    {"invoice_number": pattern},
+                    {"customer_snapshot.display_name": pattern},
+                    {"customer_snapshot.legal_name": pattern},
+                    {"project_reference": pattern},
+                    {"po_reference": pattern},
+                ]
+            }
+        )
+    if and_conditions:
+        query["$and"] = and_conditions
     total = await db.invoices.count_documents(query)
     docs = await db.invoices.find(query).sort("created_at", DESCENDING).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
     return {"items": [_serialize_invoice(doc) for doc in docs], "total": total, "page": page, "page_size": page_size}
@@ -1957,7 +1993,13 @@ async def issue_invoice(
     sequence = int(counter["sequence"])
     invoice_number = f"{prefix}/{fy_label}/{sequence:04d}"
     now = _now()
-    status = "overdue" if payload.due_date < _business_date(now) and calculated["totals"]["balance_paise"] > 0 else "issued"
+    status = (
+        "overdue"
+        if payload.due_date is not None
+        and payload.due_date < _business_date(now)
+        and calculated["totals"]["balance_paise"] > 0
+        else "issued"
+    )
     issued_fields = {
         **calculated,
         "invoice_number": invoice_number,
@@ -2007,12 +2049,17 @@ async def duplicate_invoice(
     if not source:
         raise _http_error(404, "invoice_not_found", "Invoice not found")
     source_input = dict(source["calculation_input"])
-    settings = await _get_settings_doc(db)
     options = payload or DuplicateInvoiceInput()
     new_invoice_date = options.invoice_date or _business_date()
-    new_due_date = options.due_date or (new_invoice_date + timedelta(days=int(settings.get("default_due_days", 0))))
+    new_due_date = options.due_date
+    if new_due_date is not None and new_due_date < new_invoice_date:
+        raise _http_error(
+            400,
+            "duplicate_due_date_before_invoice_date",
+            "Due date cannot be earlier than the resolved invoice date",
+        )
     source_input["invoice_date"] = new_invoice_date.isoformat()
-    source_input["due_date"] = new_due_date.isoformat()
+    source_input["due_date"] = new_due_date.isoformat() if new_due_date is not None else None
     duplicated_payload = InvoiceDraftInput.model_validate(source_input)
     doc = await _create_draft_document(db, duplicated_payload, auth)
     await _audit(db, auth, "invoice.duplicate", "invoice", doc["_id"], {"source_invoice_id": source_oid})
@@ -2384,6 +2431,7 @@ async def metadata(auth: Annotated[AuthContext, Depends(require_auth)]) -> dict[
         "gst_rates": COMMON_GST_RATES,
         "payment_methods": PAYMENT_METHODS,
         "invoice_statuses": INVOICE_STATUSES,
+        "quotation_statuses": QUOTATION_STATUSES,
         "customer_types": ["business", "individual"],
         "item_types": ["goods", "service"],
         "gst_registration_modes": list(GST_REGISTRATION_MODES),
@@ -2435,5 +2483,1625 @@ async def invoice_pdf(
             "Cache-Control": "private, no-store, max-age=0",
             "Pragma": "no-cache",
             "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+# Quotations deliberately share validated party/line input and the authoritative
+# calculation engine, but use separate persistence, numbering, lifecycle and PDFs.
+QUOTATION_STATUSES = ["draft", "sent", "accepted", "declined", "expired", "converted"]
+_QUOTATION_EDITABLE_FIELDS = (
+    "customer_snapshot",
+    "quotation_date",
+    "valid_until",
+    "place_of_supply",
+    "lines",
+    "project_reference",
+    "po_reference",
+    "reverse_charge",
+    "tax_mode",
+    "notes",
+    "terms",
+    "post_tax_adjustment_label",
+    "post_tax_adjustment_amount",
+)
+_QUOTATION_SNAPSHOT_FIELDS = (
+    "supplier_snapshot",
+    "customer_snapshot",
+    "customer_id",
+    "quotation_date",
+    "valid_until",
+    "place_of_supply",
+    "lines",
+    "project_reference",
+    "po_reference",
+    "reverse_charge",
+    "tax_mode",
+    "tax_regime",
+    "document_title",
+    "notes",
+    "terms",
+    "post_tax_adjustment_label",
+    "totals",
+    "calculation_input",
+)
+_QUOTATION_TOTAL_NAMES = (
+    "subtotal",
+    "discount",
+    "taxable",
+    "cgst",
+    "sgst",
+    "igst",
+    "total_tax",
+    "post_tax_adjustment",
+    "round_off",
+    "grand_total",
+)
+
+
+class QuotationDraftInput(APIModel):
+    customer_snapshot: InvoiceCustomerSnapshot
+    quotation_date: date
+    valid_until: date
+    place_of_supply: StateReference
+    lines: list[InvoiceLineInput] = Field(min_length=1, max_length=200)
+    project_reference: str = Field(default="", max_length=240)
+    po_reference: str = Field(default="", max_length=240)
+    reverse_charge: bool = False
+    tax_mode: Literal["auto", "no_tax"] = "auto"
+    notes: str = Field(default="", max_length=5000)
+    terms: str = Field(default="", max_length=5000)
+    post_tax_adjustment_label: str = Field(default="", max_length=160)
+    post_tax_adjustment_amount: Decimal = Field(
+        default=ZERO,
+        ge=-MAX_MONEY,
+        le=MAX_MONEY,
+        max_digits=14,
+        decimal_places=2,
+    )
+
+    @field_validator("post_tax_adjustment_amount")
+    @classmethod
+    def validate_adjustment(cls, value: Decimal) -> Decimal:
+        if not value.is_finite():
+            raise ValueError("post_tax_adjustment_amount must be finite")
+        return value
+
+    @model_validator(mode="after")
+    def validate_dates_and_adjustment(self) -> "QuotationDraftInput":
+        if self.valid_until < self.quotation_date:
+            raise ValueError("valid_until cannot be earlier than quotation_date")
+        if self.post_tax_adjustment_amount != ZERO and not self.post_tax_adjustment_label:
+            raise ValueError("post_tax_adjustment_label is required for a non-zero adjustment")
+        return self
+
+
+class QuotationUpdateInput(QuotationDraftInput):
+    expected_revision: int = Field(ge=1, le=MAX_SAFE_INTEGER)
+
+
+class QuotationRevisionInput(APIModel):
+    expected_revision: int = Field(ge=1, le=MAX_SAFE_INTEGER)
+
+
+class QuotationStatusInput(APIModel):
+    expected_revision: int = Field(ge=1, le=MAX_SAFE_INTEGER)
+    status: Literal["accepted", "declined", "expired"]
+
+
+class DuplicateQuotationInput(APIModel):
+    expected_revision: int = Field(ge=1, le=MAX_SAFE_INTEGER)
+    quotation_date: date | None = None
+    valid_until: date | None = None
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> "DuplicateQuotationInput":
+        if self.quotation_date and self.valid_until and self.valid_until < self.quotation_date:
+            raise ValueError("valid_until cannot be earlier than quotation_date")
+        return self
+
+
+class ConvertQuotationInput(APIModel):
+    expected_revision: int = Field(ge=1, le=MAX_SAFE_INTEGER)
+    invoice_date: date
+    due_date: date | None = None
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> "ConvertQuotationInput":
+        if self.due_date is not None and self.due_date < self.invoice_date:
+            raise ValueError("due_date cannot be earlier than invoice_date")
+        return self
+
+
+def _quotation_draft_payload(payload: QuotationUpdateInput) -> QuotationDraftInput:
+    return QuotationDraftInput.model_validate(payload.model_dump(mode="json", exclude={"expected_revision"}))
+
+
+def _quotation_as_invoice_payload(payload: QuotationDraftInput) -> InvoiceDraftInput:
+    data = payload.model_dump(mode="json")
+    data["invoice_date"] = data.pop("quotation_date")
+    data["due_date"] = data.pop("valid_until")
+    return InvoiceDraftInput.model_validate(data)
+
+
+def _invoice_input_from_quotation(
+    payload: QuotationDraftInput,
+    invoice_date: date,
+    due_date: date | None,
+) -> InvoiceDraftInput:
+    data = payload.model_dump(mode="json")
+    data.pop("quotation_date", None)
+    data.pop("valid_until", None)
+    data["invoice_date"] = invoice_date.isoformat()
+    data["due_date"] = due_date.isoformat() if due_date is not None else None
+    return InvoiceDraftInput.model_validate(data)
+
+
+def _calculate_quotation(payload: QuotationDraftInput, settings: dict[str, Any]) -> dict[str, Any]:
+    """Adapt the invoice calculator without persisting invoice lifecycle/payment semantics."""
+    invoice_calculation = _calculate_invoice(_quotation_as_invoice_payload(payload), settings)
+    invoice_totals = invoice_calculation["totals"]
+    totals = {
+        key: copy.deepcopy(invoice_totals[key])
+        for name in _QUOTATION_TOTAL_NAMES
+        for key in (f"{name}_paise", f"{name}_display")
+    }
+    return {
+        "supplier_snapshot": copy.deepcopy(invoice_calculation["supplier_snapshot"]),
+        "customer_snapshot": copy.deepcopy(invoice_calculation["customer_snapshot"]),
+        "customer_id": invoice_calculation["customer_id"],
+        "quotation_date": invoice_calculation["invoice_date"],
+        "valid_until": invoice_calculation["due_date"],
+        "place_of_supply": copy.deepcopy(invoice_calculation["place_of_supply"]),
+        "lines": copy.deepcopy(invoice_calculation["lines"]),
+        "project_reference": invoice_calculation["project_reference"],
+        "po_reference": invoice_calculation["po_reference"],
+        "reverse_charge": invoice_calculation["reverse_charge"],
+        "tax_mode": invoice_calculation["tax_mode"],
+        "tax_regime": invoice_calculation["tax_regime"],
+        "document_title": "QUOTATION",
+        "notes": invoice_calculation["notes"],
+        "terms": invoice_calculation["terms"],
+        "post_tax_adjustment_label": invoice_calculation["post_tax_adjustment_label"],
+        "totals": totals,
+        "calculation_input": payload.model_dump(mode="json"),
+    }
+
+
+def _quotation_draft_input_projection(doc: dict[str, Any]) -> dict[str, Any]:
+    source = doc.get("calculation_input")
+    if not isinstance(source, dict):
+        return {}
+    return {field: _api_value(source[field]) for field in _QUOTATION_EDITABLE_FIELDS if field in source}
+
+
+def _serialize_quotation(doc: dict[str, Any]) -> dict[str, Any]:
+    _ensure_safe_paise_fields(doc)
+    excluded = {
+        "_id",
+        "calculation_input",
+        "number_allocation",
+        "send_operation",
+        "duplicate_operation",
+        "duplicate_operation_id",
+    }
+    output = {key: _api_value(value) for key, value in doc.items() if key not in excluded}
+    output["id"] = str(doc["_id"])
+    output["quotation_date"] = _date_string(doc.get("quotation_date"))
+    output["valid_until"] = _date_string(doc.get("valid_until"))
+    output["send_pending"] = doc.get("status") == "sent" and "number_allocation" in doc
+    output["draft_input"] = _quotation_draft_input_projection(doc)
+
+    calculation_input = doc.get("calculation_input")
+    input_lines = calculation_input.get("lines") or [] if isinstance(calculation_input, dict) else []
+    if not isinstance(input_lines, list):
+        input_lines = []
+    for index, line in enumerate(output.get("lines") or []):
+        if not isinstance(line, dict) or "input_gst_rate" in line or index >= len(input_lines):
+            continue
+        input_line = input_lines[index]
+        if isinstance(input_line, dict) and "gst_rate" in input_line:
+            line["input_gst_rate"] = _api_value(input_line["gst_rate"])
+    return output
+
+
+def _quotation_conflict(code: str, message: str, quotation: dict[str, Any]) -> HTTPException:
+    return HTTPException(
+        status_code=409,
+        detail={"code": code, "message": message, "quotation": _serialize_quotation(quotation)},
+    )
+
+
+def _require_quotation_revision(quotation: dict[str, Any], expected_revision: int) -> int:
+    revision = int(quotation.get("revision", 1))
+    if expected_revision != revision:
+        raise _quotation_conflict(
+            "quotation_revision_conflict",
+            "This quotation changed since you reviewed it. Reload the latest quotation and retry.",
+            quotation,
+        )
+    return revision
+
+
+def _stored_business_date(value: Any, field: str) -> date:
+    if isinstance(value, datetime):
+        return _as_utc(value).date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            pass
+    raise _http_error(409, "quotation_snapshot_invalid", f"Stored quotation {field} is invalid")
+
+
+def _prepare_quotation_send_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    registration_mode = _normalize_gst_registration_mode(settings.get("gst_registration_mode"))
+    if registration_mode not in ISSUABLE_GST_REGISTRATION_MODES:
+        raise _http_error(
+            409,
+            "quotation_gst_registration_decision_required",
+            "Choose an explicit GST registration mode (unregistered, regular, or composition) before sending a quotation",
+        )
+    prepared = {**settings, "gst_registration_mode": registration_mode}
+    if registration_mode not in {"regular", "composition"}:
+        return prepared
+
+    stored_gstin = str(prepared.get("gstin") or "").strip()
+    if not stored_gstin:
+        raise _http_error(
+            409,
+            "quotation_business_gstin_required",
+            "Configure the business GSTIN before sending a GST quotation",
+        )
+    try:
+        prepared["gstin"] = _normalize_and_validate_gstin(stored_gstin)
+    except ValueError as exc:
+        raise _http_error(
+            409,
+            "quotation_business_gstin_invalid",
+            f"Correct the business GSTIN before sending: {exc}",
+        )
+    business_address = prepared.get("address") or {}
+    try:
+        _validate_state_pair(
+            business_address.get("state", ""),
+            business_address.get("state_code", ""),
+            required=True,
+        )
+    except ValueError as exc:
+        raise _http_error(
+            409,
+            "quotation_business_state_required",
+            f"Configure a valid business state and state code: {exc}",
+        )
+    if prepared["gstin"][:2] != business_address["state_code"]:
+        raise _http_error(
+            409,
+            "quotation_business_gstin_state_mismatch",
+            "Business GSTIN and address state code do not match",
+        )
+    return prepared
+
+
+def _validate_quotation_send_compliance(
+    payload: QuotationDraftInput,
+    settings: dict[str, Any],
+    calculated: dict[str, Any],
+) -> None:
+    registration_mode = _normalize_gst_registration_mode(settings.get("gst_registration_mode"))
+    if registration_mode not in {"regular", "composition"}:
+        return
+
+    supplier_missing = _missing_address_fields(settings.get("address") or {})
+    if supplier_missing:
+        raise _http_error(
+            409,
+            "quotation_business_address_incomplete",
+            "Complete the business address before sending a GST quotation: " + ", ".join(supplier_missing),
+        )
+    lines_without_codes = [str(index) for index, line in enumerate(payload.lines, start=1) if not line.hsn_sac]
+    if lines_without_codes:
+        raise _http_error(
+            409,
+            "quotation_hsn_sac_required",
+            "Add an HSN/SAC code to quotation line(s): " + ", ".join(lines_without_codes),
+        )
+
+    customer = payload.customer_snapshot
+    customer_address = customer.billing_address.model_dump(mode="json")
+    address_required = bool(customer.gstin) or int(calculated["totals"]["taxable_paise"]) >= 5_000_000
+    customer_missing = _missing_address_fields(customer_address) if address_required else []
+    if customer_missing:
+        raise _http_error(
+            409,
+            "quotation_customer_address_incomplete",
+            "Complete the customer billing address before sending: " + ", ".join(customer_missing),
+        )
+    if not customer.shipping_same_as_billing and customer.shipping_address is not None:
+        shipping_missing = _missing_address_fields(customer.shipping_address.model_dump(mode="json"))
+        if shipping_missing:
+            raise _http_error(
+                409,
+                "quotation_shipping_address_incomplete",
+                "Complete the delivery address before sending: " + ", ".join(shipping_missing),
+            )
+
+
+def _new_quotation_document(
+    calculated: dict[str, Any],
+    auth: AuthContext,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    timestamp = now or _now()
+    return {
+        **calculated,
+        "status": "draft",
+        "created_at": timestamp,
+        "created_by": auth.user_id,
+        "updated_at": timestamp,
+        "updated_by": auth.user_id,
+        "revision": 1,
+        "schema_version": 1,
+    }
+
+
+async def _create_quotation_draft_document(
+    db: Any,
+    payload: QuotationDraftInput,
+    auth: AuthContext,
+) -> dict[str, Any]:
+    calculated = _calculate_quotation(payload, await _get_settings_doc(db))
+    document = _new_quotation_document(calculated, auth)
+    result = await db.quotations.insert_one(document)
+    document["_id"] = result.inserted_id
+    return document
+
+
+def _quotation_snapshot(source: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return {field: copy.deepcopy(source[field]) for field in _QUOTATION_SNAPSHOT_FIELDS}
+    except KeyError as exc:
+        raise _http_error(
+            409,
+            "quotation_snapshot_invalid",
+            f"Stored quotation snapshot is missing {exc.args[0]}",
+        ) from exc
+
+
+def _invoice_document_title_from_quotation(quotation: dict[str, Any]) -> str:
+    if quotation.get("tax_regime") in {"intra_state", "inter_state"}:
+        return "TAX INVOICE"
+    mode = _normalize_gst_registration_mode((quotation.get("supplier_snapshot") or {}).get("gst_registration_mode"))
+    return "BILL OF SUPPLY" if mode in {"regular", "composition"} else "INVOICE"
+
+
+def _invoice_draft_from_accepted_quotation(
+    quotation: dict[str, Any],
+    payload: ConvertQuotationInput,
+    auth: AuthContext,
+) -> dict[str, Any]:
+    try:
+        quotation_input = QuotationDraftInput.model_validate(quotation["calculation_input"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _http_error(
+            409,
+            "quotation_snapshot_invalid",
+            "The accepted quotation does not contain a valid conversion input snapshot",
+        ) from exc
+    invoice_input = _invoice_input_from_quotation(quotation_input, payload.invoice_date, payload.due_date)
+    snapshot = _quotation_snapshot(quotation)
+    lines = snapshot["lines"]
+    if not isinstance(lines, list) or not lines:
+        raise _http_error(409, "quotation_snapshot_invalid", "The accepted quotation has no line snapshot")
+    for line in lines:
+        if isinstance(line, dict):
+            line["id"] = str(ObjectId())
+
+    totals = copy.deepcopy(snapshot["totals"])
+    grand_total_paise = int(totals.get("grand_total_paise", 0))
+    _ensure_safe_paise(grand_total_paise)
+    for name, value in (
+        ("received", 0),
+        ("tds_withheld", 0),
+        ("settled", 0),
+        ("paid", 0),
+        ("balance", grand_total_paise),
+    ):
+        totals.update(_money_pair(name, value))
+
+    now = _now()
+    document = {
+        "supplier_snapshot": snapshot["supplier_snapshot"],
+        "customer_snapshot": snapshot["customer_snapshot"],
+        "customer_id": snapshot["customer_id"],
+        "invoice_date": _at_utc_midnight(payload.invoice_date),
+        "due_date": _at_utc_midnight(payload.due_date) if payload.due_date is not None else None,
+        "place_of_supply": snapshot["place_of_supply"],
+        "lines": lines,
+        "project_reference": snapshot["project_reference"],
+        "po_reference": snapshot["po_reference"],
+        "reverse_charge": snapshot["reverse_charge"],
+        "tax_mode": snapshot["tax_mode"],
+        "tax_regime": snapshot["tax_regime"],
+        "document_title": _invoice_document_title_from_quotation(quotation),
+        "notes": snapshot["notes"],
+        "terms": snapshot["terms"],
+        "post_tax_adjustment_label": snapshot["post_tax_adjustment_label"],
+        "totals": totals,
+        "calculation_input": invoice_input.model_dump(mode="json"),
+        "source_quotation_id": quotation["_id"],
+        "source_quotation_number": quotation.get("quotation_number", ""),
+        "financial_year": None,
+        "sequence_number": None,
+        "status": "draft",
+        "payments": [],
+        "e_invoice": {"irn": "", "ack_number": "", "ack_date": None, "signed_qr_data": "", "source": "manual"},
+        "cancel_reason": "",
+        "cancelled_at": None,
+        "cancelled_by": None,
+        "issued_at": None,
+        "issued_by": None,
+        "created_at": now,
+        "created_by": auth.user_id,
+        "updated_at": now,
+        "updated_by": auth.user_id,
+        "revision": 1,
+        "schema_version": 1,
+    }
+    return document
+
+
+async def _reconcile_quotation_conversion(
+    db: Any,
+    quotation_id: ObjectId,
+    invoice: dict[str, Any],
+    auth: AuthContext,
+    expected_revision: int,
+) -> tuple[dict[str, Any], bool]:
+    invoice_id = invoice["_id"]
+    current = await db.quotations.find_one({"_id": quotation_id})
+    if not current:
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    status = current.get("status")
+    linked_invoice_id = current.get("converted_invoice_id")
+    if linked_invoice_id is not None and str(linked_invoice_id) != str(invoice_id):
+        raise _quotation_conflict(
+            "quotation_conversion_conflict",
+            "Quotation conversion points to a different invoice; manual reconciliation is required.",
+            current,
+        )
+    if status == "converted" and linked_invoice_id is not None:
+        return current, False
+    if current.get("duplicate_operation"):
+        raise _quotation_conflict(
+            "quotation_operation_in_progress",
+            "Finish the pending quotation duplication before converting it.",
+            current,
+        )
+    revision = _require_quotation_revision(current, expected_revision)
+    if status not in {"accepted", "converted"}:
+        raise _quotation_conflict(
+            "quotation_not_accepted",
+            "Only an accepted quotation can be converted to an invoice draft.",
+            current,
+        )
+
+    now = _now()
+    updated = await db.quotations.find_one_and_update(
+        {"_id": quotation_id, "status": status, "revision": revision},
+        {
+            "$set": {
+                "status": "converted",
+                "converted_invoice_id": invoice_id,
+                "converted_at": now,
+                "converted_by": auth.user_id,
+                "updated_at": now,
+                "updated_by": auth.user_id,
+            },
+            "$inc": {"revision": 1},
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if updated:
+        return updated, True
+    latest = await db.quotations.find_one({"_id": quotation_id})
+    if not latest:
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    latest_link = latest.get("converted_invoice_id")
+    if latest.get("status") == "converted" and latest_link is not None and str(latest_link) == str(invoice_id):
+        return latest, False
+    raise _quotation_conflict(
+        "quotation_revision_conflict",
+        "Quotation changed while its invoice conversion was being reconciled. Reload and retry.",
+        latest,
+    )
+
+
+async def _allocate_quotation_sequence(
+    db: Any,
+    financial_year: str,
+    operation_id: str,
+) -> int:
+    """Allocate exactly once for one durable send operation."""
+    now = _now()
+    update = [
+        {
+            "$set": {
+                "prefix": {"$ifNull": ["$prefix", "QUO"]},
+                "financial_year": {"$ifNull": ["$financial_year", financial_year]},
+                "created_at": {"$ifNull": ["$created_at", now]},
+                "sequence": {"$ifNull": ["$sequence", 0]},
+                "allocations": {"$ifNull": ["$allocations", []]},
+            }
+        },
+        {
+            "$set": {
+                "_allocation_exists": {
+                    "$in": [
+                        operation_id,
+                        {
+                            "$map": {
+                                "input": "$allocations",
+                                "as": "allocation",
+                                "in": "$$allocation.operation_id",
+                            }
+                        },
+                    ]
+                }
+            }
+        },
+        {
+            "$set": {
+                "_next_sequence": {
+                    "$cond": [
+                        "$_allocation_exists",
+                        "$sequence",
+                        {"$add": ["$sequence", 1]},
+                    ]
+                }
+            }
+        },
+        {
+            "$set": {
+                "_pending_allocation": {
+                    "operation_id": operation_id,
+                    "sequence": "$_next_sequence",
+                    "created_at": now,
+                }
+            }
+        },
+        {
+            "$set": {
+                "sequence": "$_next_sequence",
+                "allocations": {
+                    "$cond": [
+                        "$_allocation_exists",
+                        "$allocations",
+                        {
+                            "$concatArrays": [
+                                "$allocations",
+                                {
+                                    "$map": {
+                                        "input": [0],
+                                        "as": "unused",
+                                        "in": "$_pending_allocation",
+                                    }
+                                },
+                            ]
+                        },
+                    ]
+                },
+                "updated_at": now,
+            }
+        },
+    ]
+
+    counter = None
+    for attempt in range(2):
+        try:
+            counter = await db.quotation_counters.find_one_and_update(
+                {"_id": financial_year},
+                update,
+                upsert=True,
+                return_document=ReturnDocument.AFTER,
+            )
+            break
+        except DuplicateKeyError as exc:
+            # Two unrelated first allocations can race to create the FY counter.
+            # One bounded retry now targets the counter created by the winner.
+            if attempt:
+                raise _http_error(
+                    409,
+                    "quotation_sequence_failed",
+                    "Quotation number could not be allocated; retry sending the quotation",
+                ) from exc
+
+    if not counter:
+        counter = await db.quotation_counters.find_one({"_id": financial_year})
+    allocation = next(
+        (
+            item.get("sequence")
+            for item in (counter.get("allocations") or [])
+            if isinstance(item, dict) and item.get("operation_id") == operation_id
+        ),
+        None,
+    ) if counter else None
+    if not isinstance(allocation, int) or isinstance(allocation, bool) or allocation < 1:
+        raise _http_error(409, "quotation_sequence_failed", "Quotation number could not be allocated")
+    return allocation
+
+
+async def _mark_quotation_sequence_completed(
+    db: Any,
+    financial_year: str,
+    operation_id: str,
+) -> None:
+    """Retain allocation evidence and record its first successful completion."""
+    now = _now()
+    try:
+        await db.quotation_counters.update_one(
+            {
+                "_id": financial_year,
+                "allocations": {
+                    "$elemMatch": {
+                        "operation_id": operation_id,
+                        "completed_at": {"$exists": False},
+                    }
+                },
+            },
+            {
+                "$set": {
+                    "allocations.$.completed_at": now,
+                    "updated_at": now,
+                }
+            },
+        )
+    except Exception:
+        # The operation mapping itself remains durable even if annotating it fails.
+        logger.exception("Unable to mark quotation number allocation %s completed", operation_id)
+
+
+async def _complete_pending_quotation_send(
+    db: Any,
+    quotation: dict[str, Any],
+    auth: AuthContext,
+) -> dict[str, Any]:
+    allocation = quotation.get("number_allocation")
+    if "number_allocation" not in quotation:
+        return quotation
+    if not isinstance(allocation, dict):
+        raise _quotation_conflict(
+            "quotation_state_conflict",
+            "Quotation number allocation metadata is invalid.",
+            quotation,
+        )
+    if quotation.get("status") != "sent":
+        raise _quotation_conflict(
+            "quotation_state_conflict",
+            "Quotation number allocation is attached to an invalid lifecycle state.",
+            quotation,
+        )
+    operation_id = str(allocation.get("operation_id") or "")
+    financial_year = str(allocation.get("financial_year") or "")
+    financial_year_label = str(allocation.get("financial_year_label") or "")
+    if not re.fullmatch(r"[0-9a-f]{24}", operation_id) or not re.fullmatch(r"\d{4}-\d{4}", financial_year):
+        raise _quotation_conflict(
+            "quotation_state_conflict",
+            "Quotation number allocation metadata is invalid.",
+            quotation,
+        )
+    if not re.fullmatch(r"\d{2}-\d{2}", financial_year_label):
+        raise _quotation_conflict(
+            "quotation_state_conflict",
+            "Quotation financial-year label is invalid.",
+            quotation,
+        )
+
+    revision_value = quotation.get("revision", 1)
+    base_revision = allocation.get("base_revision")
+    if (
+        not isinstance(revision_value, int)
+        or isinstance(revision_value, bool)
+        or not isinstance(base_revision, int)
+        or isinstance(base_revision, bool)
+        or base_revision < 1
+        or revision_value != base_revision + 1
+    ):
+        raise _quotation_conflict(
+            "quotation_state_conflict",
+            "Quotation send revision metadata is invalid.",
+            quotation,
+        )
+    revision = revision_value
+    sequence = await _allocate_quotation_sequence(db, financial_year, operation_id)
+    quotation_number = f"QUO/{financial_year_label}/{sequence:04d}"
+    now = _now()
+    created_at = allocation.get("created_at")
+    send_operation = {
+        "operation_id": operation_id,
+        "base_revision": base_revision,
+        "financial_year": financial_year,
+        "financial_year_label": financial_year_label,
+        "sequence_number": sequence,
+        "quotation_number": quotation_number,
+        "created_at": created_at if isinstance(created_at, datetime) else now,
+        "completed_at": now,
+        "completed_revision": revision + 1,
+    }
+    try:
+        completed = await db.quotations.find_one_and_update(
+            {
+                "_id": quotation["_id"],
+                "status": "sent",
+                "revision": revision,
+                "number_allocation.operation_id": operation_id,
+            },
+            {
+                "$set": {
+                    "quotation_number": quotation_number,
+                    "sequence_number": sequence,
+                    "send_operation": send_operation,
+                    "updated_at": now,
+                    "updated_by": auth.user_id,
+                },
+                "$unset": {"number_allocation": ""},
+                "$inc": {"revision": 1},
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+    except DuplicateKeyError as exc:
+        raise _http_error(
+            409,
+            "quotation_number_conflict",
+            "Quotation number allocation conflicted; retry sending the quotation",
+        ) from exc
+    if not completed:
+        latest = await db.quotations.find_one({"_id": quotation["_id"]})
+        latest_operation = latest.get("send_operation") if latest else None
+        if (
+            latest
+            and latest.get("quotation_number")
+            and isinstance(latest_operation, dict)
+            and latest_operation.get("operation_id") == operation_id
+            and latest_operation.get("quotation_number") == latest.get("quotation_number")
+        ):
+            await _mark_quotation_sequence_completed(db, financial_year, operation_id)
+            return latest
+        if latest:
+            raise _quotation_conflict(
+                "quotation_revision_conflict",
+                "Quotation changed while its number was being finalized. Reload and retry.",
+                latest,
+            )
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    await _mark_quotation_sequence_completed(db, financial_year, operation_id)
+    await _audit(
+        db,
+        auth,
+        "quotation.send",
+        "quotation",
+        quotation["_id"],
+        {"quotation_number": quotation_number, "revision": int(completed["revision"])},
+    )
+    return completed
+
+
+async def _materialize_quotation_lifecycle(
+    db: Any,
+    quotation: dict[str, Any],
+    auth: AuthContext,
+) -> dict[str, Any]:
+    current = quotation
+    if current.get("duplicate_operation"):
+        return current
+    if "number_allocation" in current:
+        current = await _complete_pending_quotation_send(db, current, auth)
+    if current.get("status") != "sent":
+        return current
+    valid_until = _stored_business_date(current.get("valid_until"), "valid_until")
+    if valid_until >= _business_date():
+        return current
+
+    revision = int(current.get("revision", 1))
+    now = _now()
+    expired = await db.quotations.find_one_and_update(
+        {
+            "_id": current["_id"],
+            "status": "sent",
+            "revision": revision,
+            "valid_until": {"$lt": _at_utc_midnight(_business_date(now))},
+        },
+        {
+            "$set": {
+                "status": "expired",
+                "status_changed_at": now,
+                "status_changed_by": auth.user_id,
+                "expired_at": now,
+                "expired_by": auth.user_id,
+                "updated_at": now,
+                "updated_by": auth.user_id,
+            },
+            "$inc": {"revision": 1},
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if not expired:
+        return await db.quotations.find_one({"_id": current["_id"]}) or current
+    await _audit(
+        db,
+        auth,
+        "quotation.status",
+        "quotation",
+        current["_id"],
+        {"from": "sent", "to": "expired", "automatic_expiry": True, "revision": int(expired["revision"])},
+    )
+    return expired
+
+
+async def _materialize_due_quotation_lifecycle(db: Any, auth: AuthContext) -> None:
+    cutoff = _at_utc_midnight(_business_date())
+    query = {
+        "status": "sent",
+        "$or": [
+            {"number_allocation": {"$exists": True}},
+            {"valid_until": {"$lt": cutoff}},
+        ],
+    }
+    async for quotation in db.quotations.find(query):
+        try:
+            await _materialize_quotation_lifecycle(db, quotation, auth)
+        except Exception:
+            logger.exception(
+                "Unable to materialize quotation lifecycle for %s; continuing register read",
+                quotation.get("_id"),
+            )
+
+
+@router.post("/quotations", status_code=201)
+async def create_quotation(
+    payload: QuotationDraftInput,
+    auth: Annotated[AuthContext, Depends(require_csrf)],
+) -> dict[str, Any]:
+    db = _database()
+    doc = await _create_quotation_draft_document(db, payload, auth)
+    await _audit(
+        db,
+        auth,
+        "quotation.create",
+        "quotation",
+        doc["_id"],
+        {"customer": payload.customer_snapshot.display_name, "revision": 1},
+    )
+    return _serialize_quotation(doc)
+
+
+@router.get("/quotations")
+async def list_quotations(
+    auth: Annotated[AuthContext, Depends(require_auth)],
+    q: str = Query(default="", max_length=200),
+    status: Literal["draft", "sent", "accepted", "declined", "expired", "converted"] | None = Query(default=None),
+    customer_id: str | None = Query(default=None, max_length=24),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=100),
+) -> dict[str, Any]:
+    db = _database()
+    await _materialize_due_quotation_lifecycle(db, auth)
+    query: dict[str, Any] = {}
+    if status:
+        query["status"] = status
+    if customer_id:
+        query["customer_id"] = _object_id(customer_id, "customer")
+    if date_from or date_to:
+        date_query: dict[str, datetime] = {}
+        if date_from:
+            date_query["$gte"] = _at_utc_midnight(date_from)
+        if date_to:
+            date_query["$lte"] = _at_utc_midnight(date_to)
+        query["quotation_date"] = date_query
+    if q:
+        pattern = re.compile(re.escape(q), re.IGNORECASE)
+        query["$or"] = [
+            {"quotation_number": pattern},
+            {"customer_snapshot.display_name": pattern},
+            {"customer_snapshot.legal_name": pattern},
+            {"project_reference": pattern},
+            {"po_reference": pattern},
+        ]
+    total = await db.quotations.count_documents(query)
+    docs = await (
+        db.quotations.find(query)
+        .sort("created_at", DESCENDING)
+        .skip((page - 1) * page_size)
+        .limit(page_size)
+        .to_list(page_size)
+    )
+    return {
+        "items": [_serialize_quotation(doc) for doc in docs],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@router.get("/quotation-dashboard")
+async def quotation_dashboard(auth: Annotated[AuthContext, Depends(require_auth)]) -> dict[str, Any]:
+    db = _database()
+    await _materialize_due_quotation_lifecycle(db, auth)
+    counts = {status: await db.quotations.count_documents({"status": status}) for status in QUOTATION_STATUSES}
+    recent = await db.quotations.find({}).sort("created_at", DESCENDING).limit(10).to_list(10)
+    return {
+        "counts": counts,
+        "total": sum(counts.values()),
+        "recent_quotations": [_serialize_quotation(doc) for doc in recent],
+        "generated_at": _iso_datetime(_now()),
+    }
+
+
+@router.get("/quotations/{quotation_id}")
+async def get_quotation(
+    quotation_id: str,
+    auth: Annotated[AuthContext, Depends(require_auth)],
+) -> dict[str, Any]:
+    oid = _object_id(quotation_id, "quotation")
+    db = _database()
+    doc = await db.quotations.find_one({"_id": oid})
+    if not doc:
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    doc = await _materialize_quotation_lifecycle(db, doc, auth)
+    return _serialize_quotation(doc)
+
+
+@router.put("/quotations/{quotation_id}")
+async def update_quotation_draft(
+    quotation_id: str,
+    payload: QuotationUpdateInput,
+    auth: Annotated[AuthContext, Depends(require_csrf)],
+) -> dict[str, Any]:
+    oid = _object_id(quotation_id, "quotation")
+    db = _database()
+    existing = await db.quotations.find_one({"_id": oid})
+    if not existing:
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    revision = _require_quotation_revision(existing, payload.expected_revision)
+    if existing.get("duplicate_operation"):
+        raise _quotation_conflict(
+            "quotation_operation_in_progress",
+            "Finish the pending quotation duplication before editing it.",
+            existing,
+        )
+    if existing.get("status") != "draft":
+        raise _quotation_conflict(
+            "quotation_immutable",
+            "Only draft quotations can be edited.",
+            existing,
+        )
+
+    draft_payload = _quotation_draft_payload(payload)
+    calculated = _calculate_quotation(draft_payload, await _get_settings_doc(db))
+    now = _now()
+    updated = await db.quotations.find_one_and_update(
+        {"_id": oid, "status": "draft", "revision": revision},
+        {
+            "$set": {**calculated, "updated_at": now, "updated_by": auth.user_id},
+            "$inc": {"revision": 1},
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if not updated:
+        latest = await db.quotations.find_one({"_id": oid})
+        if latest:
+            raise _quotation_conflict(
+                "quotation_revision_conflict",
+                "Quotation changed while it was being updated. Reload the latest quotation and retry.",
+                latest,
+            )
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    await _audit(
+        db,
+        auth,
+        "quotation.update",
+        "quotation",
+        oid,
+        {"previous_revision": revision, "revision": int(updated["revision"])},
+    )
+    return _serialize_quotation(updated)
+
+
+@router.delete("/quotations/{quotation_id}")
+async def delete_quotation_draft(
+    quotation_id: str,
+    auth: Annotated[AuthContext, Depends(require_csrf)],
+    expected_revision: int = Query(ge=1, le=MAX_SAFE_INTEGER),
+) -> dict[str, Any]:
+    oid = _object_id(quotation_id, "quotation")
+    db = _database()
+    existing = await db.quotations.find_one({"_id": oid})
+    if not existing:
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    revision = _require_quotation_revision(existing, expected_revision)
+    if existing.get("duplicate_operation"):
+        raise _quotation_conflict(
+            "quotation_operation_in_progress",
+            "Finish the pending quotation duplication before deleting it.",
+            existing,
+        )
+    if existing.get("status") != "draft":
+        raise _quotation_conflict(
+            "quotation_immutable",
+            "Only draft quotations can be deleted.",
+            existing,
+        )
+    result = await db.quotations.delete_one({"_id": oid, "status": "draft", "revision": revision})
+    if result.deleted_count == 0:
+        latest = await db.quotations.find_one({"_id": oid})
+        if latest:
+            raise _quotation_conflict(
+                "quotation_revision_conflict",
+                "Quotation changed while it was being deleted. Reload the latest quotation and retry.",
+                latest,
+            )
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    await _audit(
+        db,
+        auth,
+        "quotation.delete",
+        "quotation",
+        oid,
+        {"deleted_revision": revision, "customer": (existing.get("customer_snapshot") or {}).get("display_name", "")},
+    )
+    return {"ok": True, "id": str(oid), "deleted_revision": revision}
+
+
+@router.post("/quotations/{quotation_id}/send")
+async def send_quotation(
+    quotation_id: str,
+    payload: QuotationRevisionInput,
+    auth: Annotated[AuthContext, Depends(require_csrf)],
+) -> dict[str, Any]:
+    oid = _object_id(quotation_id, "quotation")
+    db = _database()
+    existing = await db.quotations.find_one({"_id": oid})
+    if not existing:
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    expected_revision = payload.expected_revision
+    current_revision = existing.get("revision", 1)
+    pending_allocation = existing.get("number_allocation")
+    if existing.get("status") == "sent" and isinstance(pending_allocation, dict):
+        pending_base_revision = pending_allocation.get("base_revision")
+        pending_retry_matches = (
+            isinstance(current_revision, int)
+            and not isinstance(current_revision, bool)
+            and (
+                expected_revision == current_revision
+                or (
+                    isinstance(pending_base_revision, int)
+                    and not isinstance(pending_base_revision, bool)
+                    and expected_revision == pending_base_revision
+                )
+            )
+        )
+        if pending_retry_matches:
+            if existing.get("duplicate_operation"):
+                raise _quotation_conflict(
+                    "quotation_operation_in_progress",
+                    "Finish the pending quotation duplication before sending it.",
+                    existing,
+                )
+            completed = await _complete_pending_quotation_send(db, existing, auth)
+            return _serialize_quotation(completed)
+
+    completed_operation = existing.get("send_operation")
+    if isinstance(completed_operation, dict):
+        completed_base_revision = completed_operation.get("base_revision")
+        completed_sequence = completed_operation.get("sequence_number")
+        if (
+            isinstance(completed_base_revision, int)
+            and not isinstance(completed_base_revision, bool)
+            and expected_revision == completed_base_revision
+            and re.fullmatch(r"[0-9a-f]{24}", str(completed_operation.get("operation_id") or ""))
+            and completed_operation.get("quotation_number") == existing.get("quotation_number")
+            and isinstance(completed_sequence, int)
+            and not isinstance(completed_sequence, bool)
+            and completed_sequence == existing.get("sequence_number")
+            and completed_operation.get("completed_revision") == completed_base_revision + 2
+        ):
+            return _serialize_quotation(existing)
+
+    revision = _require_quotation_revision(existing, expected_revision)
+    if existing.get("duplicate_operation"):
+        raise _quotation_conflict(
+            "quotation_operation_in_progress",
+            "Finish the pending quotation duplication before sending it.",
+            existing,
+        )
+    if existing.get("status") == "sent" and "number_allocation" in existing:
+        completed = await _complete_pending_quotation_send(db, existing, auth)
+        return _serialize_quotation(completed)
+    if existing.get("status") != "draft":
+        raise _quotation_conflict(
+            "quotation_not_draft",
+            "Only a draft quotation can be sent.",
+            existing,
+        )
+    try:
+        draft_payload = QuotationDraftInput.model_validate(existing["calculation_input"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _http_error(
+            409,
+            "quotation_snapshot_invalid",
+            "The draft quotation does not contain a valid calculation input snapshot",
+        ) from exc
+    if draft_payload.valid_until < _business_date():
+        raise _quotation_conflict(
+            "quotation_validity_elapsed",
+            "The quotation validity date has passed. Update the draft before sending it.",
+            existing,
+        )
+
+    settings = _prepare_quotation_send_settings(await _get_settings_doc(db))
+    calculated = _calculate_quotation(draft_payload, settings)
+    _validate_quotation_send_compliance(draft_payload, settings, calculated)
+    calculation_fields = tuple(calculated.keys())
+    if _calculation_review_projection(existing, calculation_fields) != _calculation_review_projection(
+        calculated,
+        calculation_fields,
+    ):
+        now = _now()
+        refreshed = await db.quotations.find_one_and_update(
+            {"_id": oid, "status": "draft", "revision": revision},
+            {
+                "$set": {**calculated, "updated_at": now, "updated_by": auth.user_id},
+                "$inc": {"revision": 1},
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        if not refreshed:
+            latest = await db.quotations.find_one({"_id": oid})
+            if latest:
+                raise _quotation_conflict(
+                    "quotation_revision_conflict",
+                    "Quotation changed while it was recalculated. Reload and review the latest quotation.",
+                    latest,
+                )
+            raise _http_error(404, "quotation_not_found", "Quotation not found")
+        await _audit(
+            db,
+            auth,
+            "quotation.recalculate",
+            "quotation",
+            oid,
+            {"previous_revision": revision, "revision": int(refreshed["revision"])},
+        )
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "quotation_recalculated",
+                "message": "Current business settings changed this quotation. Review the refreshed quotation, then send it again.",
+                "quotation": _serialize_quotation(refreshed),
+            },
+        )
+
+    reviewed_lines = existing.get("lines") or []
+    for index, line in enumerate(calculated.get("lines") or []):
+        if index < len(reviewed_lines) and isinstance(reviewed_lines[index], dict) and "id" in reviewed_lines[index]:
+            line["id"] = reviewed_lines[index]["id"]
+
+    financial_year, financial_year_label = _financial_year(draft_payload.quotation_date)
+    operation_id = str(ObjectId())
+    now = _now()
+    pending = await db.quotations.find_one_and_update(
+        {"_id": oid, "status": "draft", "revision": revision},
+        {
+            "$set": {
+                **calculated,
+                "financial_year": financial_year,
+                "status": "sent",
+                "sent_at": now,
+                "sent_by": auth.user_id,
+                "number_allocation": {
+                    "operation_id": operation_id,
+                    "base_revision": revision,
+                    "financial_year": financial_year,
+                    "financial_year_label": financial_year_label,
+                    "created_at": now,
+                },
+                "updated_at": now,
+                "updated_by": auth.user_id,
+            },
+            "$inc": {"revision": 1},
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if not pending:
+        latest = await db.quotations.find_one({"_id": oid})
+        if latest:
+            raise _quotation_conflict(
+                "quotation_revision_conflict",
+                "Quotation changed while it was being sent. Reload the latest quotation and retry.",
+                latest,
+            )
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    sent = await _complete_pending_quotation_send(db, pending, auth)
+    return _serialize_quotation(sent)
+
+
+@router.post("/quotations/{quotation_id}/status")
+async def update_quotation_status(
+    quotation_id: str,
+    payload: QuotationStatusInput,
+    auth: Annotated[AuthContext, Depends(require_csrf)],
+) -> dict[str, Any]:
+    oid = _object_id(quotation_id, "quotation")
+    db = _database()
+    existing = await db.quotations.find_one({"_id": oid})
+    if not existing:
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    revision = _require_quotation_revision(existing, payload.expected_revision)
+    if existing.get("duplicate_operation"):
+        raise _quotation_conflict(
+            "quotation_operation_in_progress",
+            "Finish the pending quotation duplication before changing its lifecycle status.",
+            existing,
+        )
+    if existing.get("number_allocation"):
+        raise _quotation_conflict(
+            "quotation_send_incomplete",
+            "Finish the pending quotation send before changing its lifecycle status.",
+            existing,
+        )
+    if existing.get("status") != "sent":
+        raise _quotation_conflict(
+            "quotation_transition_not_allowed",
+            "Only a sent quotation can be accepted, declined, or marked expired.",
+            existing,
+        )
+
+    valid_until = _stored_business_date(existing.get("valid_until"), "valid_until")
+    is_past_validity = valid_until < _business_date()
+    if payload.status == "expired" and not is_past_validity:
+        raise _quotation_conflict(
+            "quotation_not_expired",
+            "A quotation can be marked expired only after its valid-until date has passed.",
+            existing,
+        )
+    effective_status = "expired" if is_past_validity else payload.status
+    now = _now()
+    status_fields: dict[str, Any] = {
+        "status": effective_status,
+        "status_changed_at": now,
+        "status_changed_by": auth.user_id,
+        "updated_at": now,
+        "updated_by": auth.user_id,
+    }
+    status_fields[f"{effective_status}_at"] = now
+    status_fields[f"{effective_status}_by"] = auth.user_id
+    updated = await db.quotations.find_one_and_update(
+        {"_id": oid, "status": "sent", "revision": revision},
+        {"$set": status_fields, "$inc": {"revision": 1}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not updated:
+        latest = await db.quotations.find_one({"_id": oid})
+        if latest:
+            raise _quotation_conflict(
+                "quotation_revision_conflict",
+                "Quotation changed while its status was being updated. Reload and retry.",
+                latest,
+            )
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    await _audit(
+        db,
+        auth,
+        "quotation.status",
+        "quotation",
+        oid,
+        {
+            "from": "sent",
+            "to": effective_status,
+            "requested_status": payload.status,
+            "automatic_expiry": is_past_validity and payload.status != "expired",
+            "revision": int(updated["revision"]),
+        },
+    )
+    if effective_status == "expired" and payload.status != "expired":
+        raise _quotation_conflict(
+            "quotation_expired",
+            "This quotation is past its valid-until date and has been marked expired; it cannot be accepted or declined.",
+            updated,
+        )
+    return _serialize_quotation(updated)
+
+
+@router.post("/quotations/{quotation_id}/duplicate", status_code=201)
+async def duplicate_quotation(
+    quotation_id: str,
+    payload: DuplicateQuotationInput,
+    auth: Annotated[AuthContext, Depends(require_csrf)],
+) -> dict[str, Any]:
+    source_id = _object_id(quotation_id, "quotation")
+    db = _database()
+    source = await db.quotations.find_one({"_id": source_id})
+    if not source:
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    revision = _require_quotation_revision(source, payload.expected_revision)
+    if source.get("number_allocation"):
+        raise _quotation_conflict(
+            "quotation_send_incomplete",
+            "Finish the pending quotation send before duplicating it.",
+            source,
+        )
+
+    operation = source.get("duplicate_operation")
+    if operation is not None and not isinstance(operation, dict):
+        raise _quotation_conflict(
+            "quotation_state_conflict",
+            "The pending quotation duplication metadata is invalid.",
+            source,
+        )
+    if operation is None:
+        try:
+            source_input = copy.deepcopy(source["calculation_input"])
+            if payload.quotation_date is not None:
+                source_input["quotation_date"] = payload.quotation_date.isoformat()
+            if payload.valid_until is not None:
+                source_input["valid_until"] = payload.valid_until.isoformat()
+            duplicated_input = QuotationDraftInput.model_validate(source_input)
+            _quotation_snapshot(source)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise _http_error(
+                409,
+                "quotation_snapshot_invalid",
+                "The source quotation does not contain a valid duplicable snapshot",
+            ) from exc
+        now = _now()
+        operation = {
+            "operation_id": str(ObjectId()),
+            "base_revision": revision,
+            "quotation_date": duplicated_input.quotation_date.isoformat(),
+            "valid_until": duplicated_input.valid_until.isoformat(),
+            "created_at": now,
+            "created_by": auth.user_id,
+        }
+        claimed_source = await db.quotations.find_one_and_update(
+            {"_id": source_id, "revision": revision, "duplicate_operation": {"$exists": False}},
+            {
+                "$set": {
+                    "duplicate_operation": operation,
+                    "updated_at": now,
+                    "updated_by": auth.user_id,
+                },
+                "$inc": {"revision": 1},
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        if not claimed_source:
+            latest = await db.quotations.find_one({"_id": source_id})
+            if latest:
+                raise _quotation_conflict(
+                    "quotation_revision_conflict",
+                    "Quotation changed while it was being duplicated. Reload the latest quotation and retry.",
+                    latest,
+                )
+            raise _http_error(404, "quotation_not_found", "Quotation not found")
+    else:
+        claimed_source = source
+
+    operation_id = str(operation.get("operation_id") or "")
+    if not re.fullmatch(r"[0-9a-f]{24}", operation_id):
+        raise _quotation_conflict(
+            "quotation_state_conflict",
+            "The pending quotation duplication identifier is invalid.",
+            claimed_source,
+        )
+    try:
+        source_input = copy.deepcopy(claimed_source["calculation_input"])
+        source_input["quotation_date"] = str(operation["quotation_date"])
+        source_input["valid_until"] = str(operation["valid_until"])
+        duplicated_input = QuotationDraftInput.model_validate(source_input)
+        snapshot = _quotation_snapshot(claimed_source)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _http_error(
+            409,
+            "quotation_snapshot_invalid",
+            "The pending quotation duplication does not contain a valid snapshot",
+        ) from exc
+
+    duplicated = await db.quotations.find_one({"duplicate_operation_id": operation_id})
+    if not duplicated:
+        snapshot["quotation_date"] = _at_utc_midnight(duplicated_input.quotation_date)
+        snapshot["valid_until"] = _at_utc_midnight(duplicated_input.valid_until)
+        snapshot["calculation_input"] = duplicated_input.model_dump(mode="json")
+        for line in snapshot.get("lines") or []:
+            if isinstance(line, dict):
+                line["id"] = str(ObjectId())
+        duplicated = _new_quotation_document(snapshot, auth)
+        duplicated["duplicate_operation_id"] = operation_id
+        try:
+            result = await db.quotations.insert_one(duplicated)
+            duplicated["_id"] = result.inserted_id
+        except DuplicateKeyError:
+            duplicated = await db.quotations.find_one({"duplicate_operation_id": operation_id})
+            if not duplicated:
+                raise _http_error(
+                    409,
+                    "quotation_duplication_conflict",
+                    "Quotation duplication conflicted and could not be reconciled; reload and retry.",
+                )
+
+    claimed_revision = int(claimed_source.get("revision", 1))
+    now = _now()
+    finalized_source = await db.quotations.find_one_and_update(
+        {
+            "_id": source_id,
+            "revision": claimed_revision,
+            "duplicate_operation.operation_id": operation_id,
+        },
+        {
+            "$set": {
+                "last_duplicated_at": now,
+                "last_duplicated_by": auth.user_id,
+                "last_duplicated_quotation_id": duplicated["_id"],
+                "updated_at": now,
+                "updated_by": auth.user_id,
+            },
+            "$unset": {"duplicate_operation": ""},
+            "$inc": {"revision": 1},
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if not finalized_source:
+        latest = await db.quotations.find_one({"_id": source_id})
+        if not latest:
+            raise _http_error(404, "quotation_not_found", "Quotation not found")
+        if str(latest.get("last_duplicated_quotation_id") or "") != str(duplicated["_id"]):
+            raise _quotation_conflict(
+                "quotation_revision_conflict",
+                "Quotation changed while duplication was being finalized. Reload and retry.",
+                latest,
+            )
+    await _audit(
+        db,
+        auth,
+        "quotation.duplicate",
+        "quotation",
+        duplicated["_id"],
+        {
+            "source_quotation_id": source_id,
+            "source_previous_revision": operation.get("base_revision"),
+            "source_revision": int((finalized_source or latest)["revision"]),
+        },
+    )
+    return _serialize_quotation(duplicated)
+
+
+@router.post("/quotations/{quotation_id}/convert")
+async def convert_quotation_to_invoice(
+    quotation_id: str,
+    payload: ConvertQuotationInput,
+    auth: Annotated[AuthContext, Depends(require_csrf)],
+) -> dict[str, Any]:
+    quotation_oid = _object_id(quotation_id, "quotation")
+    db = _database()
+    quotation = await db.quotations.find_one({"_id": quotation_oid})
+    if not quotation:
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+
+    existing_invoice = await db.invoices.find_one({"source_quotation_id": quotation_oid})
+    if existing_invoice:
+        reconciled, transitioned = await _reconcile_quotation_conversion(
+            db,
+            quotation_oid,
+            existing_invoice,
+            auth,
+            payload.expected_revision,
+        )
+        if transitioned:
+            await _audit(
+                db,
+                auth,
+                "quotation.convert",
+                "quotation",
+                quotation_oid,
+                {"invoice_id": existing_invoice["_id"], "reconciled": True},
+            )
+        return {
+            "quotation": _serialize_quotation(reconciled),
+            "invoice": _serialize_invoice(existing_invoice),
+            "idempotent": True,
+        }
+
+    _require_quotation_revision(quotation, payload.expected_revision)
+    if quotation.get("duplicate_operation"):
+        raise _quotation_conflict(
+            "quotation_operation_in_progress",
+            "Finish the pending quotation duplication before converting it.",
+            quotation,
+        )
+    if quotation.get("status") != "accepted":
+        raise _quotation_conflict(
+            "quotation_not_accepted",
+            "Only an accepted quotation can be converted to an invoice draft.",
+            quotation,
+        )
+
+    invoice = _invoice_draft_from_accepted_quotation(quotation, payload, auth)
+    created = False
+    try:
+        result = await db.invoices.insert_one(invoice)
+        invoice["_id"] = result.inserted_id
+        created = True
+    except DuplicateKeyError:
+        invoice = await db.invoices.find_one({"source_quotation_id": quotation_oid})
+        if not invoice:
+            raise _http_error(
+                409,
+                "quotation_conversion_conflict",
+                "Invoice conversion conflicted and could not be reconciled; reload and retry.",
+            )
+
+    reconciled, transitioned = await _reconcile_quotation_conversion(
+        db,
+        quotation_oid,
+        invoice,
+        auth,
+        payload.expected_revision,
+    )
+    if transitioned:
+        await _audit(
+            db,
+            auth,
+            "quotation.convert",
+            "quotation",
+            quotation_oid,
+            {
+                "invoice_id": invoice["_id"],
+                "quotation_number": quotation.get("quotation_number", ""),
+                "reconciled": not created,
+            },
+        )
+    return {
+        "quotation": _serialize_quotation(reconciled),
+        "invoice": _serialize_invoice(invoice),
+        "idempotent": not created,
+    }
+
+
+@router.get("/quotations/{quotation_id}/pdf")
+async def quotation_pdf(
+    quotation_id: str,
+    auth: Annotated[AuthContext, Depends(require_auth)],
+    inline: bool = Query(default=False),
+    expected_revision: int | None = Query(default=None, ge=1, le=MAX_SAFE_INTEGER),
+) -> Response:
+    oid = _object_id(quotation_id, "quotation")
+    db = _database()
+    doc = await db.quotations.find_one({"_id": oid})
+    if not doc:
+        raise _http_error(404, "quotation_not_found", "Quotation not found")
+    if expected_revision is not None:
+        _require_quotation_revision(doc, expected_revision)
+    doc = await _materialize_quotation_lifecycle(db, doc, auth)
+    if expected_revision is not None:
+        _require_quotation_revision(doc, expected_revision)
+    quotation = _serialize_quotation(doc)
+    rendered_revision = int(doc.get("revision", 1))
+    pdf_bytes = await run_in_threadpool(render_quotation_pdf, quotation)
+    identifier = quotation.get("quotation_number") or f"Draft-Quotation-{quotation['id']}"
+    safe_identifier = re.sub(r"[^A-Za-z0-9._-]+", "-", identifier).strip("-") or "Quotation"
+    disposition = "inline" if inline else "attachment"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'{disposition}; filename="Suvi-Interior-{safe_identifier}.pdf"',
+            "Cache-Control": "private, no-store, max-age=0",
+            "Pragma": "no-cache",
+            "X-Content-Type-Options": "nosniff",
+            "X-Quotation-Revision": str(rendered_revision),
+            "Access-Control-Expose-Headers": "Content-Disposition, X-Quotation-Revision",
         },
     )

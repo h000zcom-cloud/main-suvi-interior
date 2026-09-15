@@ -7,6 +7,7 @@ import {
   Copy,
   CreditCard,
   Download,
+  ExternalLink,
   Eye,
   FilePenLine,
   FileText,
@@ -73,7 +74,9 @@ function titleCase(value, fallback = "—") {
 }
 
 function invoiceName(invoice) {
-  return invoice?.invoice_number || `Draft · ${String(invoice?.id || "").slice(-6).toUpperCase()}`;
+  if (invoice?.invoice_number) return invoice.invoice_number;
+  const reference = String(invoice?.id || "").slice(-6).toUpperCase();
+  return reference ? `Invoice draft · ${reference}` : "Invoice draft";
 }
 
 function money(container, key) {
@@ -164,10 +167,15 @@ function Fact({ label, children }) {
   );
 }
 
-function TotalRow({ label, value, emphasis = false }) {
+function TotalRow({ label, value, emphasis = false, paid = false }) {
+  const className = [
+    "admin-invoice-total",
+    emphasis ? "admin-invoice-total--emphasis" : "",
+    paid ? "admin-invoice-total--paid" : "",
+  ].filter(Boolean).join(" ");
   return (
-    <div className={`admin-invoice-total ${emphasis ? "admin-invoice-total--emphasis" : ""}`}>
-      <dt>{label}</dt>
+    <div className={className}>
+      <dt>{paid ? <CheckCircle2 aria-hidden="true" /> : null}<span>{label}</span></dt>
       <dd>{value}</dd>
     </div>
   );
@@ -212,6 +220,7 @@ export default function InvoiceDetailPage() {
   const [clearEInvoiceOpen, setClearEInvoiceOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
+  const [previewFilename, setPreviewFilename] = useState("");
   const previewUrlRef = useRef("");
   const currentInvoiceIdRef = useRef(invoiceId);
   const mountedRef = useRef(true);
@@ -260,6 +269,7 @@ export default function InvoiceDetailPage() {
     setClearEInvoiceOpen(false);
     setPreviewOpen(false);
     setPreviewUrl("");
+    setPreviewFilename("");
     setLatestActionError(null);
   }, [invoiceId]);
 
@@ -391,7 +401,7 @@ export default function InvoiceDetailPage() {
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
       toast.success("Invoice PDF downloaded.");
     },
     onError: (error, { targetInvoiceId }) => reportMutationError(error, "The invoice PDF could not be downloaded.", targetInvoiceId),
@@ -400,20 +410,33 @@ export default function InvoiceDetailPage() {
   const previewPdfMutation = useMutation({
     mutationFn: ({ targetInvoiceId }) => adminApi.invoices.pdf(targetInvoiceId, true),
     onMutate: ({ targetInvoiceId }) => clearCurrentActionError(targetInvoiceId),
-    onSuccess: ({ blob }, { targetInvoiceId }) => {
+    onSuccess: ({ blob, disposition }, { targetInvoiceId, displayName }) => {
       if (!isCurrentTarget(targetInvoiceId)) return;
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       const objectUrl = URL.createObjectURL(blob);
       previewUrlRef.current = objectUrl;
       setPreviewUrl(objectUrl);
+      setPreviewFilename(safeFilename(disposition, `Suvi-Interior-${displayName}.pdf`));
       setPreviewOpen(true);
     },
     onError: (error, { targetInvoiceId }) => reportMutationError(error, "The invoice PDF preview could not be loaded.", targetInvoiceId),
   });
 
+  function downloadCurrentPreview() {
+    if (!previewUrl) return;
+    const anchor = document.createElement("a");
+    anchor.href = previewUrl;
+    anchor.download = previewFilename || "Suvi-Interior-Invoice-Draft.pdf";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    toast.success("The reviewed invoice PDF was downloaded.");
+  }
+
   function closePdfPreview() {
     setPreviewOpen(false);
     setPreviewUrl("");
+    setPreviewFilename("");
     if (previewUrlRef.current) {
       URL.revokeObjectURL(previewUrlRef.current);
       previewUrlRef.current = "";
@@ -596,6 +619,7 @@ export default function InvoiceDetailPage() {
   const eInvoice = invoice.e_invoice || {};
   const payments = invoice.payments || [];
   const isDraft = invoice.status === "draft";
+  const isPaid = invoice.status === "paid";
   const isCancelled = invoice.status === "cancelled";
   const isIssuedLike = MUTABLE_PAYMENT_STATUSES.has(invoice.status);
   const balancePaise = moneyPaise(totals, "balance");
@@ -644,7 +668,7 @@ export default function InvoiceDetailPage() {
               {duplicateMutation.isPending ? <LoaderCircle className="admin-spin" aria-hidden="true" /> : <Copy aria-hidden="true" />}
               Duplicate
             </button>
-            <button className="admin-button admin-button--outline" type="button" onClick={() => previewPdfMutation.mutate({ targetInvoiceId: invoiceId })} disabled={pdfBusy}>
+            <button className="admin-button admin-button--outline" type="button" onClick={() => previewPdfMutation.mutate({ targetInvoiceId: invoiceId, displayName: invoiceName(invoice) })} disabled={pdfBusy}>
               {previewPdfMutation.isPending ? <LoaderCircle className="admin-spin" aria-hidden="true" /> : <Eye aria-hidden="true" />}
               Preview PDF
             </button>
@@ -699,15 +723,21 @@ export default function InvoiceDetailPage() {
           </div>
           <div className="admin-invoice-document__identity">
             <StatusBadge status={invoice.status} />
+            {isPaid ? (
+              <div className="admin-invoice-paid-marker" role="status" aria-label="Paid and settled in full">
+                <CheckCircle2 aria-hidden="true" />
+                <span><strong>PAID</strong><small>Settled in full</small></span>
+              </div>
+            ) : null}
             <p>{invoice.document_title || "INVOICE"}</p>
             <h2>{invoice.invoice_number || "NUMBER PENDING"}</h2>
             <code>{invoice.id}</code>
           </div>
         </header>
 
-        <dl className="admin-invoice-document__facts">
+        <dl className="admin-invoice-document__facts admin-invoice-document__facts--adaptive">
           <Fact label="Invoice date">{formatDate(invoice.invoice_date)}</Fact>
-          <Fact label="Due date">{formatDate(invoice.due_date)}</Fact>
+          {invoice.due_date ? <Fact label="Due date">{formatDate(invoice.due_date)}</Fact> : null}
           <Fact label="Project reference">{invoice.project_reference || "—"}</Fact>
           <Fact label="PO reference">{invoice.po_reference || "—"}</Fact>
           <Fact label="Financial year">{invoice.financial_year || "Allocated on issue"}</Fact>
@@ -829,6 +859,7 @@ export default function InvoiceDetailPage() {
               <TotalRow label={invoice.post_tax_adjustment_label || "Post-tax adjustment"} value={money(totals, "post_tax_adjustment")} />
               <TotalRow label="Round off" value={money(totals, "round_off")} />
               <TotalRow label="Grand total" value={money(totals, "grand_total")} emphasis />
+              {isPaid ? <TotalRow label="Paid in full" value={money(totals, "settled")} paid /> : null}
             </dl>
           </div>
         </section>
@@ -845,7 +876,7 @@ export default function InvoiceDetailPage() {
             <div className="admin-payment-summary__item"><dt>Cash received</dt><dd>{money(totals, "received")}</dd></div>
             <div className="admin-payment-summary__item"><dt>TDS withheld</dt><dd>{money(totals, "tds_withheld")}</dd></div>
             <div className="admin-payment-summary__item"><dt>Total settled</dt><dd>{money(totals, "settled")}</dd></div>
-            <div className="admin-payment-summary__item admin-payment-summary__item--balance"><dt>Balance due</dt><dd>{money(totals, "balance")}</dd></div>
+            <div className={`admin-payment-summary__item admin-payment-summary__item--balance${isPaid ? " admin-payment-summary__item--paid" : ""}`}><dt>Balance due</dt><dd>{money(totals, "balance")}</dd></div>
           </dl>
         </section>
 
@@ -1284,17 +1315,23 @@ export default function InvoiceDetailPage() {
       <Dialog open={previewOpen} onOpenChange={(open) => { if (!open) closePdfPreview(); }}>
         <DialogContent className="admin-dialog admin-pdf-dialog">
           <DialogHeader>
-            <DialogTitle>PDF preview · {invoiceName(invoice)}</DialogTitle>
-            <DialogDescription>Private authenticated preview. Download the file if your browser cannot display PDFs inline.</DialogDescription>
+            <DialogTitle>Invoice PDF preview · {invoiceName(invoice)}</DialogTitle>
+            <DialogDescription>
+              This private preview is the exact generated file. Open it separately for a larger view or download this same snapshot.
+            </DialogDescription>
           </DialogHeader>
           <div className="admin-pdf-preview">
             {previewUrl ? <iframe className="admin-pdf-preview__frame" src={previewUrl} title={`PDF preview of ${invoiceName(invoice)}`} /> : <LoadingState label="Preparing PDF preview…" />}
           </div>
           <DialogFooter className="admin-dialog__footer">
             <button className="admin-button admin-button--ghost" type="button" onClick={closePdfPreview}>Close preview</button>
-            <button className="admin-button admin-button--primary" type="button" onClick={() => downloadPdfMutation.mutate({ targetInvoiceId: invoiceId, displayName: invoiceName(invoice) })} disabled={downloadPdfMutation.isPending}>
-              {downloadPdfMutation.isPending ? <LoaderCircle className="admin-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}
-              Download PDF
+            {previewUrl ? (
+              <a className="admin-button admin-button--outline" href={previewUrl} target="_blank" rel="noreferrer">
+                <ExternalLink aria-hidden="true" /> Open separately
+              </a>
+            ) : null}
+            <button className="admin-button admin-button--primary" type="button" onClick={downloadCurrentPreview} disabled={!previewUrl}>
+              <Download aria-hidden="true" /> Download this PDF
             </button>
           </DialogFooter>
         </DialogContent>

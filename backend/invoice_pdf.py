@@ -21,7 +21,6 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     Flowable,
-    KeepInFrame,
     KeepTogether,
     Paragraph,
     SimpleDocTemplate,
@@ -40,6 +39,9 @@ TAUPE = HexColor("#766C63")
 BRASS = HexColor("#C5A880")
 OXBLOOD = HexColor("#58130E")
 LINE = HexColor("#DCD5C8")
+SUCCESS = HexColor("#24634C")
+SUCCESS_PALE = HexColor("#E8F3ED")
+SUCCESS_LINE = HexColor("#92BEA9")
 WHITE = colors.white
 
 _FONT_FILES = {
@@ -434,6 +436,40 @@ def _styles() -> dict[str, ParagraphStyle]:
             alignment=TA_RIGHT,
             spaceAfter=0,
         ),
+        "paid_heading": ParagraphStyle(
+            "InvoicePaidHeading",
+            parent=base["BodyText"],
+            fontName="Invoice-Sans-Medium",
+            fontSize=8.5,
+            leading=10,
+            textColor=SUCCESS,
+            alignment=TA_RIGHT,
+            borderWidth=0.7,
+            borderColor=SUCCESS,
+            borderPadding=3.5,
+            backColor=SUCCESS_PALE,
+            spaceBefore=3,
+            spaceAfter=0,
+        ),
+        "paid_label": ParagraphStyle(
+            "InvoicePaidLabel",
+            parent=base["BodyText"],
+            fontName="Invoice-Sans-Medium",
+            fontSize=9,
+            leading=11,
+            textColor=SUCCESS,
+            spaceAfter=0,
+        ),
+        "paid_value": ParagraphStyle(
+            "InvoicePaidValue",
+            parent=base["BodyText"],
+            fontName="Invoice-Sans-Medium",
+            fontSize=6.5,
+            leading=9,
+            textColor=SUCCESS,
+            alignment=TA_RIGHT,
+            spaceAfter=0,
+        ),
         "signature": ParagraphStyle(
             "InvoiceSignature",
             parent=base["BodyText"],
@@ -479,24 +515,30 @@ def _page_decorator(canvas, doc, invoice_number: str, status: str) -> None:
     canvas.line(doc.leftMargin, 13 * mm, width - doc.rightMargin, 13 * mm)
     canvas.setFont("Invoice-Sans-Light", 5.8)
     canvas.setFillColor(TAUPE)
-    canvas.drawString(doc.leftMargin, 8.5 * mm, "PRIVATE FINANCIAL DOCUMENT")
-    canvas.drawRightString(width - doc.rightMargin, 8.5 * mm, f"PAGE {doc.page}")
+    footer_label = "PRIVATE FINANCIAL DOCUMENT"
     if status == "draft":
-        canvas.saveState()
-        try:
-            canvas.setFillAlpha(0.055)
-        except AttributeError:
-            pass
-        canvas.setFillColor(OXBLOOD)
-        canvas.setFont("Invoice-Display-Medium", 62)
-        canvas.translate(width / 2, height / 2)
-        canvas.rotate(38)
-        canvas.drawCentredString(0, 0, "DRAFT")
-        canvas.restoreState()
-    elif status == "cancelled":
-        canvas.setFillColor(OXBLOOD)
-        canvas.setFont("Invoice-Sans-Medium", 8)
-        canvas.drawCentredString(width / 2, height - 11 * mm, "CANCELLED")
+        footer_label += " · DRAFT · NOT ISSUED"
+    canvas.drawString(doc.leftMargin, 8.5 * mm, footer_label)
+    canvas.drawRightString(width - doc.rightMargin, 8.5 * mm, f"PAGE {doc.page}")
+
+    badge = {
+        "draft": ("DRAFT · NOT ISSUED", HexColor("#F5EAE5"), BRASS, OXBLOOD),
+        "cancelled": ("CANCELLED", HexColor("#F8E5E5"), OXBLOOD, OXBLOOD),
+    }.get(status)
+    if badge:
+        badge_label, badge_fill, badge_stroke, badge_text = badge
+        canvas.setFont("Invoice-Sans-Medium", 6.2)
+        badge_width = pdfmetrics.stringWidth(badge_label, "Invoice-Sans-Medium", 6.2) + (6 * mm)
+        badge_height = 5.5 * mm
+        badge_x = width - doc.rightMargin - badge_width
+        badge_y = height - (10.5 * mm)
+        canvas.setFillColor(badge_fill)
+        canvas.setStrokeColor(badge_stroke)
+        canvas.setLineWidth(0.55)
+        canvas.roundRect(badge_x, badge_y, badge_width, badge_height, 2.75 * mm, fill=1, stroke=1)
+        canvas.setFillColor(badge_text)
+        canvas.drawCentredString(badge_x + (badge_width / 2), badge_y + 1.85 * mm, badge_label)
+
     canvas.restoreState()
 
 
@@ -519,17 +561,26 @@ def render_invoice_pdf(invoice: dict) -> bytes:
     available_width = A4[0] - doc.leftMargin - doc.rightMargin
     story = []
 
-    title = _clean(invoice.get("document_title")) or "INVOICE"
-    status = _clean(invoice.get("status")).lower()
-    number = _clean(invoice.get("invoice_number")) or "DRAFT"
+    status = _clean(invoice.get("status")).lower() or "draft"
+    is_paid = status == "paid"
+    actual_number = _clean(invoice.get("invoice_number"))
+    number = actual_number or "NUMBER PENDING"
+    base_title = _clean(invoice.get("document_title")) or "INVOICE"
+    title = base_title
+    if status == "draft" and "draft" not in base_title.casefold():
+        title = f"{base_title} DRAFT"
+    subtitle = f"{number} · NOT ISSUED" if status == "draft" else f"{number} · {status.upper()}"
+    heading_details = [
+        Paragraph(_markup(title), styles["title"]),
+        Paragraph(_markup(subtitle), styles["subtitle"]),
+    ]
+    if is_paid:
+        heading_details.append(Paragraph("PAID IN FULL", styles["paid_heading"]))
     heading = Table(
         [
             [
                 Wordmark(),
-                [
-                    Paragraph(_markup(title), styles["title"]),
-                    Paragraph(_markup(f"{number} · {status.upper()}"), styles["subtitle"]),
-                ],
+                heading_details,
             ]
         ],
         colWidths=[available_width * 0.51, available_width * 0.49],
@@ -612,32 +663,40 @@ def render_invoice_pdf(invoice: dict) -> bytes:
     details = [
         _label_value("Invoice number", number, styles),
         _label_value("Invoice date", _date_display(invoice.get("invoice_date")), styles),
-        _label_value("Due date", _date_display(invoice.get("due_date")), styles),
-        _label_value(
-            "Place of supply",
-            f"{_clean(place.get('state'))} ({_clean(place.get('state_code'))})".strip(),
-            styles,
-        ),
-        _label_value("Reverse charge", reverse_charge, styles),
-        _label_value("Project reference", invoice.get("project_reference") or "—", styles),
-        _label_value("PO reference", invoice.get("po_reference") or "—", styles),
     ]
-    detail_table = Table([details[:4], details[4:]], colWidths=[available_width / 4] * 4)
-    detail_table.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("BOX", (0, 0), (-1, -1), 0.4, LINE),
-                ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
-                ("BACKGROUND", (0, 0), (-1, -1), IVORY),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                ("SPAN", (3, 1), (3, 1)),
-            ]
-        )
+    if _clean(invoice.get("due_date")):
+        details.append(_label_value("Due date", _date_display(invoice.get("due_date")), styles))
+    details.extend(
+        [
+            _label_value(
+                "Place of supply",
+                f"{_clean(place.get('state'))} ({_clean(place.get('state_code'))})".strip(),
+                styles,
+            ),
+            _label_value("Reverse charge", reverse_charge, styles),
+            _label_value("Project reference", invoice.get("project_reference") or "—", styles),
+            _label_value("PO reference", invoice.get("po_reference") or "—", styles),
+        ]
     )
+    detail_columns = 4 if len(details) > 6 else 3
+    detail_rows = [details[index:index + detail_columns] for index in range(0, len(details), detail_columns)]
+    last_row_count = len(detail_rows[-1])
+    if last_row_count < detail_columns:
+        detail_rows[-1].extend([""] * (detail_columns - last_row_count))
+    detail_table = Table(detail_rows, colWidths=[available_width / detail_columns] * detail_columns)
+    detail_table_style = [
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOX", (0, 0), (-1, -1), 0.4, LINE),
+        ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+        ("BACKGROUND", (0, 0), (-1, -1), IVORY),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]
+    if last_row_count < detail_columns:
+        detail_table_style.append(("SPAN", (last_row_count - 1, -1), (detail_columns - 1, -1)))
+    detail_table.setStyle(TableStyle(detail_table_style))
     story.extend([detail_table, Spacer(1, 8)])
 
     headers = ["#", "DESCRIPTION", "HSN/SAC", "QTY", "UNIT", "RATE", "DISCOUNT", "TAXABLE", "GST", "TOTAL"]
@@ -740,7 +799,37 @@ def render_invoice_pdf(invoice: dict) -> bytes:
         ("BOX", (0, -1), (-1, -1), 0.65, BRASS),
     ]
     totals_table.setStyle(TableStyle(totals_style))
-    story.append(totals_table)
+    if is_paid:
+        paid_table = Table(
+            [
+                [
+                    Paragraph("PAID IN FULL", styles["paid_label"]),
+                    Paragraph(
+                        f"TOTAL SETTLED<br/><b>{_markup(_money(totals.get('settled_display')))}</b>",
+                        styles["paid_value"],
+                    ),
+                ]
+            ],
+            colWidths=[110, 125],
+            hAlign="RIGHT",
+        )
+        paid_table.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("BACKGROUND", (0, 0), (-1, -1), SUCCESS_PALE),
+                    ("BOX", (0, 0), (-1, -1), 0.8, SUCCESS),
+                    ("LINEBEFORE", (1, 0), (1, 0), 0.35, SUCCESS_LINE),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
+        story.append(KeepTogether([totals_table, Spacer(1, 4), paid_table]))
+    else:
+        story.append(totals_table)
     story.extend(
         [
             Spacer(1, 7),
@@ -752,14 +841,15 @@ def render_invoice_pdf(invoice: dict) -> bytes:
 
     payments = invoice.get("payments") or []
     payment_rows = [
-        [Paragraph("PAYMENT SUMMARY", styles["section"]), "", ""],
+        [Paragraph("PAYMENT SUMMARY", styles["section"]), "", "", ""],
         [
             _paragraph(f"Received: {_money(totals.get('received_display'))}", styles["body"]),
             _paragraph(f"TDS withheld: {_money(totals.get('tds_withheld_display'))}", styles["body"]),
+            _paragraph(f"Total settled: {_money(totals.get('settled_display'))}", styles["body"]),
             _paragraph(f"Balance due: {_money(totals.get('balance_display'))}", styles["body"]),
         ],
     ]
-    payment_summary = Table(payment_rows, colWidths=[available_width / 3] * 3)
+    payment_summary = Table(payment_rows, colWidths=[available_width / 4] * 4)
     payment_summary.setStyle(
         TableStyle(
             [
@@ -881,16 +971,9 @@ def render_invoice_pdf(invoice: dict) -> bytes:
 
     signature_text = _clean(supplier.get("signature"))
     signatory_caption = _clean(supplier.get("authorised_signatory")) or "Authorised signatory"
-    signature_area: Flowable = Spacer(1, 23)
+    signature_area: Flowable = Spacer(1, 26)
     if signature_text:
-        signature_area = KeepInFrame(
-            168,
-            23,
-            [Paragraph(_markup(signature_text), styles["signature"])],
-            mode="shrink",
-            hAlign="CENTER",
-            vAlign="MIDDLE",
-        )
+        signature_area = Paragraph(_markup(signature_text), styles["signature"])
     signature = Table(
         [
             ["", Paragraph(_markup(f"For {_clean(supplier.get('trade_name') or supplier.get('display_name') or 'Suvi Interior')}"), styles["body"])],

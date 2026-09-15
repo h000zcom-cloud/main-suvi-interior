@@ -170,22 +170,12 @@ function catalogueSnapshot(item, currentLine) {
   };
 }
 
-function addCalendarDays(isoDate, days) {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const value = new Date(year, month - 1, day);
-  value.setDate(value.getDate() + Math.max(0, Number(days) || 0));
-  const yyyy = value.getFullYear();
-  const mm = String(value.getMonth() + 1).padStart(2, "0");
-  const dd = String(value.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 function initialDraft(settings, selectedCustomer, businessDate) {
   const invoiceDate = businessDate || "";
   return {
     customer_snapshot: selectedCustomer ? customerSnapshotFrom(selectedCustomer) : blankCustomer(),
     invoice_date: invoiceDate,
-    due_date: invoiceDate ? addCalendarDays(invoiceDate, settings?.default_due_days) : "",
+    due_date: "",
     place_of_supply: { state: "", state_code: "" },
     lines: [blankLine()],
     project_reference: "",
@@ -449,7 +439,6 @@ function validateDraft(form, states, estimate) {
   }
   if (!customer.display_name.trim()) errors["customer_snapshot.display_name"] = "Customer display name is required.";
   if (!form.invoice_date) errors.invoice_date = "Invoice date is required.";
-  if (!form.due_date) errors.due_date = "Due date is required.";
   if (form.invoice_date && form.due_date && form.due_date < form.invoice_date) {
     errors.due_date = "Due date cannot be earlier than the invoice date.";
   }
@@ -552,7 +541,7 @@ function buildPayload(form) {
       shipping_address: customer.shipping_same_as_billing ? null : addressPayload(customer.shipping_address),
     },
     invoice_date: form.invoice_date,
-    due_date: form.due_date,
+    due_date: form.due_date || null,
     place_of_supply: {
       state: form.place_of_supply.state.trim(),
       state_code: form.place_of_supply.state_code.trim(),
@@ -790,7 +779,7 @@ function InvoiceDocumentPreview({ form, settings, estimate }) {
           <section>
             <span>Invoice details</span>
             <p><b>Date:</b> {formatDate(form.invoice_date)}</p>
-            <p><b>Due:</b> {formatDate(form.due_date)}</p>
+            {form.due_date ? <p><b>Due:</b> {formatDate(form.due_date)}</p> : null}
             <p><b>Place of supply:</b> {form.place_of_supply.state || "Not selected"}{form.place_of_supply.state_code ? ` (${form.place_of_supply.state_code})` : ""}</p>
             {form.project_reference ? <p><b>Project:</b> {form.project_reference}</p> : null}
             {form.po_reference ? <p><b>PO:</b> {form.po_reference}</p> : null}
@@ -815,14 +804,14 @@ function InvoiceDocumentPreview({ form, settings, estimate }) {
                 const lineEstimate = estimate.lines[index];
                 return (
                   <tr key={line.local_key}>
-                    <th scope="row">
+                    <th scope="row" data-label="Item">
                       <span>{line.name || `Line ${index + 1}`}</span>
                       {line.hsn_sac ? <small>HSN/SAC {line.hsn_sac}</small> : null}
                     </th>
-                    <td>{displayDecimal(line.quantity)} {line.unit}</td>
-                    <td>{line.unit_rate ? `₹${line.unit_rate}` : "—"}</td>
-                    <td>{line.gst_rate === "" ? "—" : `${line.gst_rate}%`}</td>
-                    <td>{formatPaise(lineEstimate.line_total_paise)}</td>
+                    <td data-label="Quantity">{displayDecimal(line.quantity)} {line.unit}</td>
+                    <td data-label="Rate">{line.unit_rate ? `₹${line.unit_rate}` : "—"}</td>
+                    <td data-label="GST">{line.gst_rate === "" ? "—" : `${line.gst_rate}%`}</td>
+                    <td data-label="Amount">{formatPaise(lineEstimate.line_total_paise)}</td>
                   </tr>
                 );
               })}
@@ -1372,7 +1361,7 @@ export default function InvoiceEditorPage() {
                   aria-invalid={Boolean(clientErrors.invoice_date)}
                 />
               </Field>
-              <Field label="Due date" required error={clientErrors.due_date}>
+              <Field label="Due date" hint="Optional; set only when a payment term is agreed." error={clientErrors.due_date}>
                 <input
                   className="admin-input"
                   type="date"
