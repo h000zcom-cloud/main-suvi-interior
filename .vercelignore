@@ -1,0 +1,31 @@
+# Files excluded from `vercel deploy` uploads.
+# This file takes precedence over .gitignore, so everything that must never
+# reach a production build is listed explicitly rather than inherited.
+
+.git
+.github
+
+# Dependencies and virtual environments are reinstalled by the build.
+node_modules
+**/node_modules
+.venv
+venv
+__pycache__
+**/__pycache__
+*.pyc
+
+# Local environment files. Create React App inlines REACT_APP_* at build time,
+# so a stray local REACT_APP_BACKEND_URL would be compiled into the production
+# bundle and point every visitor at the developer's own machine.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Local build output. Vercel builds the frontend from source.
+frontend/build
+build
+
+# Internal working notes, review reports, and local test artifacts.
+semantic-review
+test_reports
