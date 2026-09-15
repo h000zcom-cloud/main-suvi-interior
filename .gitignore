@@ -30,6 +30,9 @@ next-env.d.ts
 dist/
 dist
 
+# Internal code-review reports. Working notes, not product source.
+semantic-review/
+
 # Environment files (comprehensive coverage)
 
 *token.json*

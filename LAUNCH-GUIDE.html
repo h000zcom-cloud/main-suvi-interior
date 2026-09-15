@@ -513,9 +513,9 @@
     <p>Two terminals. Backend (in-memory database, so you cannot touch real data):</p>
     <pre><code>cd "d:\0 My coding projects\suvi-interior\suvi-interior-latest-version-10092026"
 $env:PYTHONPATH="$PWD\backend"; $env:MONGO_URL='mongodb://localhost:27017'
-$env:DB_NAME='suvi_local'; $env:ADMIN_KEY='local-only'
+$env:DB_NAME='suvi_local'; $env:ADMIN_KEY='&lt;any-local-throwaway-value&gt;'
 $env:CORS_ORIGINS='http://localhost:3000'
-$env:INVOICE_ADMIN_USERNAME='demo-admin'; $env:INVOICE_ADMIN_PASSWORD='Suvi-Demo-2026!'
+$env:INVOICE_ADMIN_USERNAME='&lt;your-local-username&gt;'; $env:INVOICE_ADMIN_PASSWORD='&lt;your-local-password&gt;'
 $env:INVOICE_ADMIN_COOKIE_SECURE='false'
 .\.venv\Scripts\python.exe -u -c "from mongomock_motor import AsyncMongoMockClient; import os, server; server.client.close(); server.client=AsyncMongoMockClient(); server.db=server.client[os.environ['DB_NAME']]; import uvicorn; uvicorn.run(server.app, host='127.0.0.1', port=8001)"</code></pre>
     <p>Frontend:</p>
