@@ -1,5 +1,3 @@
-import os
-
 UNSPLASH = "https://images.unsplash.com/photo-{id}?auto=format&fit=crop&q=80&w=1400"
 GEN = "https://static.prod-images.emergentagent.com/jobs/f269e9d1-749a-45df-9bb4-b97d233efcd1/images/"
 
@@ -23,7 +21,8 @@ CONTENT = {
         ],
         "phone": "+91 97020 39381",
         "whatsapp_url": "https://wa.me/919702039381?text=Hi%20Suvi%20Interior%2C%20I%20saw%20your%20brochure%20and%20would%20like%20to%20discuss%20an%20interior%20project.",
-        "website": os.environ.get("SITE_URL", ""),
+        # Printed brand identity must never inherit a temporary preview hostname.
+        "website": "https://suviinterior.com",
     },
     "images": {
         "cover": f"{GEN}cbd42da2d5aeab75d8c03160dffa60bc7caccaef27cadd63015168b228dfde6a.jpeg",
