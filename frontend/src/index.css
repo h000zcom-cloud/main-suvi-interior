@@ -246,29 +246,51 @@
   .content-reveal, .split-line { opacity: 1 !important; transform: none !important; }
 }
 
-/* Neutral route loading state and private-admin isolation. */
+/* Brand-consistent Suspense fallback. It uses only index.css because the public
+   application chunk (and brand-chrome.css) has not loaded yet. Its composition
+   matches the session intro so a cold load never flashes between two designs. */
 .app-route-loader {
-  min-height: 100vh;
+  position: relative;
+  isolation: isolate;
   display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 0.75rem;
-  background: #f4efe7;
-  color: #3f1716;
-  font: 500 0.75rem/1.4 ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: 0.12em;
+  min-height: 100svh;
+  overflow: hidden;
+  place-items: center;
+  padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+  background: radial-gradient(circle at 78% 18%, rgba(197,163,109,.16), transparent 28%), linear-gradient(145deg,#571411 0%,#350b0a 72%,#24100e 100%);
+  color: #fffaf1;
+}
+.app-route-loader::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: min(80vw,34rem);
+  aspect-ratio: 1;
+  right: -22%;
+  top: -18%;
+  border: 1px solid rgba(197,163,109,.16);
+  border-radius: 50%;
+}
+.app-route-loader__frame { width: min(100%,34rem); }
+.app-route-loader__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: .9rem;
+  border-bottom: 1px solid rgba(255,255,255,.2);
+  color: rgba(255,255,255,.56);
+  font: 600 .58rem/1.4 ui-sans-serif,system-ui,sans-serif;
+  letter-spacing: .12em;
   text-transform: uppercase;
 }
-.app-route-loader__mark {
-  display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
-  place-items: center;
-  border-radius: 50%;
-  background: #571b18;
-  color: #fffaf1;
-  font: 500 1.25rem/1 Georgia, serif;
-}
+.app-route-loader__brand { display: flex; align-items: center; gap: clamp(.8rem,3vw,1.25rem); margin-top: clamp(1.5rem,6vw,2.5rem); }
+.app-route-loader__name { font: 500 clamp(3.2rem,15vw,6.4rem)/.82 Georgia,serif; letter-spacing: -.04em; }
+.app-route-loader__caption { display: grid; gap: .18rem; padding: .2rem 0 .2rem clamp(.8rem,3vw,1.25rem); border-left: 1px solid rgba(224,199,157,.55); }
+.app-route-loader__caption strong { font: 600 clamp(.62rem,2.6vw,.78rem)/1.2 ui-sans-serif,system-ui,sans-serif; letter-spacing: .08em; }
+.app-route-loader__caption small { color: #dec9ac; font: 500 clamp(.48rem,1.9vw,.6rem)/1.2 ui-sans-serif,system-ui,sans-serif; letter-spacing: .06em; }
+.app-route-loader__line { display: block; height: 1px; margin-top: clamp(1.5rem,6vw,2.5rem); overflow: hidden; background: rgba(255,255,255,.16); }
+.app-route-loader__line > span { display: block; width: 100%; height: 100%; transform-origin: left; background: #c5a36d; animation: app-route-loader-line .9s var(--ease-out) both; }
+@keyframes app-route-loader-line { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 html.admin-route body::before { display: none; }
 
 @media print {

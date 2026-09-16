@@ -133,11 +133,31 @@ html { scroll-padding-top: calc(var(--header-h) + 28px); scroll-padding-bottom: 
 /* Closing conversion panel */
 .brand-cta { position: relative; isolation: isolate; overflow: hidden; color: #fff; background: var(--wine-deep); }
 .brand-cta::before { content: ""; position: absolute; inset: 0; z-index: -2; background: radial-gradient(circle at 84% 25%, rgba(197,163,109,.22), transparent 24%), linear-gradient(135deg, #541411, #2e0908 75%); }
-.brand-cta::after { content: ""; position: absolute; z-index: -1; right: -9rem; top: 50%; width: clamp(20rem, 42vw, 42rem); aspect-ratio: 1; border: 1px solid rgba(197,163,109,.22); border-radius: 50%; transform: translateY(-50%); box-shadow: 0 0 0 5rem rgba(197,163,109,.035), 0 0 0 10rem rgba(197,163,109,.02); }
-.brand-cta .editorial-heading { max-width: 10ch; font-size: clamp(3.5rem, 7.5vw, 8rem); }
+/* Single brass ring, anchored high-right so its lower arc resolves inside the panel
+   instead of colliding with the footer ring at the seam. The halo is blurred rather
+   than a pair of solid box-shadow spreads, so `overflow: hidden` cannot slice it
+   into hard horizontal cut lines. */
+.brand-cta::after { content: ""; position: absolute; z-index: -1; right: -14vw; top: -20%; width: min(46vw, 36rem); aspect-ratio: 1; border: 1px solid rgba(197,163,109,.2); border-radius: 50%; box-shadow: 0 0 7rem 1.5rem rgba(197,163,109,.05); pointer-events: none; }
+.brand-cta-inner { position: relative; padding-block: clamp(4.25rem, 9vw, 9rem); }
+.brand-cta-eyebrow { margin-top: 2rem; color: var(--brass); }
+.brand-cta-layout { display: grid; align-items: end; gap: clamp(2.5rem, 6vw, 5rem); margin-top: clamp(2rem, 4vw, 3.5rem); }
+.brand-cta .editorial-heading { max-width: 10ch; font-size: clamp(2.8rem, 12vw, 5rem); }
 .brand-cta .editorial-heading em { color: var(--brass); }
+.brand-cta-copy { min-width: 0; max-width: 29rem; }
 .brand-cta .editorial-lede { color: rgba(255,255,255,.74); }
+.brand-cta-primary { width: 100%; margin-top: 2rem; }
+.brand-cta-contacts { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); margin-top: 1rem; border-block: 1px solid rgba(255,255,255,.16); font-style: normal; }
+.brand-cta-contact { display: grid; min-width: 0; min-height: 4.25rem; align-content: center; gap: .22rem; padding: .75rem .75rem .75rem 0; color: rgba(255,255,255,.78); transition: color .25s, background-color .25s; }
+.brand-cta-contact + .brand-cta-contact { padding-left: .75rem; border-left: 1px solid rgba(255,255,255,.16); }
+.brand-cta-contact:hover { color: #fff; }
+.brand-cta-contact span { color: rgba(255,255,255,.45); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.brand-cta-contact strong { overflow-wrap: anywhere; color: inherit; font-size: .7rem; font-weight: 500; }
 .brand-cta-rule { width: 100%; height: 1px; background: rgba(255,255,255,.18); }
+.brand-cta-rule--closing { margin-top: clamp(3.25rem, 7vw, 6rem); }
+.brand-cta-meta { display: grid; grid-template-columns: 1fr; gap: .75rem; margin-top: 1.25rem; color: rgba(255,255,255,.5); font-size: .625rem; letter-spacing: .12em; text-transform: uppercase; }
+.brand-cta-meta li { display: grid; grid-template-columns: 1.5rem minmax(0,1fr); align-items: center; gap: .65rem; }
+.brand-cta-meta li > span { color: var(--brass); font-size: .55rem; letter-spacing: .06em; }
+.brand-cta-meta li::after { content: ""; display: none; height: 1px; background: rgba(255,255,255,.16); }
 
 .page-content h1, .page-content h2, .page-content h3, .page-content p { letter-spacing: 0; }
 
@@ -145,11 +165,24 @@ html { scroll-padding-top: calc(var(--header-h) + 28px); scroll-padding-bottom: 
   .material-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 
+@media (min-width: 640px) {
+  .brand-cta .editorial-heading { font-size: clamp(4rem, 8vw, 7rem); }
+  .brand-cta-primary { width: fit-content; }
+  .brand-cta-meta { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1.25rem; }
+  .brand-cta-meta li { grid-template-columns: 1.5rem minmax(0,1fr); }
+}
+
 @media (min-width: 768px) {
   .masthead { min-height: min(72svh, 760px); }
   .masthead-inner { grid-template-columns: minmax(0,1.55fr) minmax(260px,.65fr); align-items: end; gap: 4rem; }
   .masthead-note { justify-self: end; }
   .material-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 3.25rem 1.75rem; }
+}
+
+@media (min-width: 1024px) {
+  .brand-cta-layout { grid-template-columns: repeat(12, minmax(0,1fr)); }
+  .brand-cta .editorial-heading { grid-column: span 8; font-size: clamp(5rem, 7.5vw, 8rem); }
+  .brand-cta-copy { grid-column: 10 / span 3; }
 }
 
 @media (min-width: 1280px) {
@@ -171,6 +204,14 @@ html { scroll-padding-top: calc(var(--header-h) + 28px); scroll-padding-bottom: 
   .chapter-top { flex-direction: column; gap: .75rem; }
   .project-tile-body { padding-top: 1rem; }
   .archive-filters { margin-inline: calc(var(--gutter) * -1); padding-inline: var(--gutter); }
+  /* Keep the ring a corner accent on phones instead of a band across the whole panel. */
+  .brand-cta::after { right: -32vw; top: -8%; width: min(84vw, 21rem); box-shadow: 0 0 4.5rem 1rem rgba(197,163,109,.045); }
+  .brand-cta::before { background: radial-gradient(circle at 88% 12%, rgba(197,163,109,.2), transparent 34%), linear-gradient(160deg, #541411, #2e0908 78%); }
+}
+
+@media (max-width: 374px) {
+  .brand-cta-contacts { grid-template-columns: minmax(0,1fr); }
+  .brand-cta-contact + .brand-cta-contact { padding-left: 0; border-top: 1px solid rgba(255,255,255,.16); border-left: 0; }
 }
 
 @media (max-width: 1279px) { html { scroll-padding-bottom: calc(90px + env(safe-area-inset-bottom)); } }
@@ -179,7 +220,5 @@ html { scroll-padding-top: calc(var(--header-h) + 28px); scroll-padding-bottom: 
 
 /* Accessible target and disclosure refinements */
 .project-study-badge { font-size: .75rem; }
-.brand-cta .link-underline { display: inline-flex; min-height: 44px; align-items: center; }
-.brand-cta .link-underline::after { bottom: 8px; }
 [data-testid="studio-phone"] { display: inline-flex; min-height: 44px; align-items: center; }
 [data-testid="studio-phone"].link-underline::after { bottom: 4px; }

@@ -130,3 +130,65 @@
   .hero-actions .btn-text-light { justify-content: center; }
   .home-brochure-actions .btn-light { width: 100%; }
 }
+
+/* Long-form local content and homepage FAQ. The copy remains visible in the DOM
+   and in the static crawler fallback; native details only changes presentation. */
+.home-guide { position: relative; overflow: hidden; background: var(--paper-light); }
+.home-guide::before { content: ""; position: absolute; z-index: 0; width: min(58vw,40rem); aspect-ratio: 1; right: -22vw; top: -18vw; border: 1px solid rgba(91,23,20,.09); border-radius: 50%; pointer-events: none; }
+.home-guide > .container-x { position: relative; z-index: 1; }
+.home-guide-grid { display: grid; gap: clamp(2.75rem,6vw,5rem); }
+.home-guide-copy,
+.home-guide-aside { min-width: 0; }
+.home-guide .editorial-heading { max-width: 19ch; font-size: clamp(2.7rem,5.3vw,5.5rem); }
+.home-guide .editorial-heading em { color: var(--brass-deep,#9d7a3f); font-style: italic; }
+.home-guide-lede { max-width: 42rem; margin-top: clamp(1.5rem,3vw,2.25rem); color: var(--wine); font-size: clamp(1rem,1.35vw,1.2rem); line-height: 1.75; }
+.home-guide-body { max-width: 42rem; margin-top: 1.35rem; color: var(--muted-ink); font-size: .9rem; line-height: 1.9; }
+.home-guide-subheading { color: var(--wine); font: 400 1.5rem/1.15 "Cormorant Garamond", Georgia, serif; }
+.home-guide-capabilities { display: grid; margin-top: 1.1rem; border-top: 1px solid var(--line); }
+.home-guide-capabilities li { border-bottom: 1px solid var(--line); }
+.home-guide-capabilities a { display: grid; min-height: 4.25rem; align-content: center; gap: .3rem; padding: .85rem 0; transition: opacity .25s var(--ease-out); }
+.home-guide-capabilities a:hover { opacity: .68; }
+.home-guide-capability-title { display: flex; align-items: center; gap: .5rem; color: var(--wine); font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.home-guide-capability-line { color: var(--muted-ink); font-size: .8rem; line-height: 1.65; }
+.home-guide-areas-lede { margin-top: .9rem; color: var(--muted-ink); font-size: .82rem; line-height: 1.75; }
+.home-guide-areas { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); margin-top: 1rem; border-top: 1px solid var(--line); }
+.home-guide-areas li { min-width: 0; padding: .55rem .4rem .55rem 0; border-bottom: 1px solid var(--line); color: var(--wine); font-size: .6875rem; line-height: 1.45; }
+.home-guide-faq { display: grid; gap: clamp(2rem,5vw,4rem); margin-top: clamp(3.25rem,7vw,6rem); padding-top: clamp(2.5rem,5vw,4rem); border-top: 1px solid var(--line); }
+.home-guide-faq-intro { max-width: 32rem; }
+.home-guide-faq-intro > p:last-child { max-width: 28rem; margin-top: 1rem; color: var(--muted-ink); font-size: .84rem; line-height: 1.8; }
+.home-guide-faq-heading { margin-top: 1.25rem; color: var(--wine); font: 400 clamp(2rem,3.6vw,3rem)/1.02 "Cormorant Garamond", Georgia, serif; }
+.home-guide-faq-list { min-width: 0; border-top: 1px solid var(--line); }
+.home-guide-faq-item { border-bottom: 1px solid var(--line); }
+.home-guide-faq-item summary { display: grid; grid-template-columns: minmax(0,1fr) 2.5rem; min-height: 4.25rem; align-items: center; gap: 1rem; padding: 1rem 0; color: var(--wine); cursor: pointer; list-style: none; }
+.home-guide-faq-item summary::-webkit-details-marker { display: none; }
+.home-guide-faq-item summary > span:first-child { max-width: 46rem; font: 400 clamp(1.1rem,1.8vw,1.4rem)/1.35 "Cormorant Garamond", Georgia, serif; }
+.home-guide-faq-icon { position: relative; display: grid; width: 2.25rem; height: 2.25rem; place-items: center; justify-self: end; border: 1px solid rgba(91,23,20,.2); border-radius: 50%; transition: border-color .25s, transform .35s var(--ease-out); }
+.home-guide-faq-icon::before,
+.home-guide-faq-icon::after { content: ""; position: absolute; width: .72rem; height: 1px; background: currentColor; }
+.home-guide-faq-icon::after { transform: rotate(90deg); transition: transform .3s var(--ease-out); }
+.home-guide-faq-item[open] .home-guide-faq-icon { border-color: rgba(91,23,20,.55); transform: rotate(45deg); }
+.home-guide-faq-item[open] .home-guide-faq-icon::after { transform: rotate(0); }
+.home-guide-faq-item > p { max-width: 46rem; padding: 0 3.5rem 1.4rem 0; color: var(--muted-ink); font-size: .875rem; line-height: 1.9; }
+
+@media (min-width: 640px) {
+  .home-guide-areas { display: flex; flex-wrap: wrap; gap: .4rem; border: 0; }
+  .home-guide-areas li { padding: .32rem .7rem; border: 1px solid rgba(91,23,20,.18); border-radius: 999px; }
+}
+
+@media (min-width: 1024px) {
+  .home-guide-grid { grid-template-columns: minmax(0,1.15fr) minmax(0,.85fr); align-items: start; }
+  .home-guide-faq { grid-template-columns: minmax(15rem,.72fr) minmax(0,1.28fr); align-items: start; }
+}
+
+@media (max-width: 639px) {
+  .home-guide > .container-x { padding-block: clamp(4.25rem,14vw,6rem); }
+  .home-guide .chapter-top { margin-bottom: 2.25rem; }
+  .home-guide::before { right: -38vw; top: -12rem; width: min(92vw,25rem); }
+  .home-guide-faq-item > p { padding-right: .25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-guide-capabilities a,
+  .home-guide-faq-icon,
+  .home-guide-faq-icon::after { transition: none; }
+}

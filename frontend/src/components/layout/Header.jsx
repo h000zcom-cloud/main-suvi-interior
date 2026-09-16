@@ -27,8 +27,8 @@ export const Header = ({ menuOpen, onToggle }) => {
           <Link to="/contact" data-testid="header-cta" className="header-project-link">
             <span>Plan your project</span><ArrowUpRight className="h-4 w-4" strokeWidth={1.4} />
           </Link>
-          <button type="button" onClick={onToggle} data-testid="mobile-menu-button" aria-label="Open navigation" aria-expanded={menuOpen} aria-controls="mobile-menu" className="header-menu-toggle">
-            <span>Menu</span><span className="menu-glyph" aria-hidden="true"><span /><span /></span>
+          <button type="button" onClick={onToggle} data-testid="mobile-menu-button" aria-label={menuOpen ? "Close navigation" : "Open navigation"} aria-expanded={menuOpen} aria-controls="mobile-menu" className="header-menu-toggle">
+            <span>{menuOpen ? "Close" : "Menu"}</span><span className="menu-glyph" aria-hidden="true"><span /><span /></span>
           </button>
         </div>
       </div>

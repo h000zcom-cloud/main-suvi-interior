@@ -954,7 +954,7 @@ export default function QuotationDetailPage() {
           <div className="admin-pdf-preview">{previewUrl ? <iframe className="admin-pdf-preview__frame" src={previewUrl} title={`PDF preview of ${quotationName(quotation)}`} /> : <LoadingState label="Preparing PDF preview…" />}</div>
           <DialogFooter className="admin-dialog__footer">
             <button className="admin-button admin-button--ghost" type="button" onClick={closePdfPreview}>Close preview</button>
-            {previewUrl ? <a className="admin-button admin-button--outline" href={previewUrl} target="_blank" rel="noreferrer"><ExternalLink aria-hidden="true" /> Open separately</a> : null}
+            {previewUrl ? <a className="admin-button admin-button--outline" href={previewUrl} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden="true" /> Open separately</a> : null}
             <button className="admin-button admin-button--primary" type="button" onClick={downloadCurrentPreview} disabled={!previewUrl}><Download aria-hidden="true" /> Download this PDF</button>
           </DialogFooter>
         </DialogContent>

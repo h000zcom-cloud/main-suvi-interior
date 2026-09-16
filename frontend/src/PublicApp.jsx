@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { ReactLenis } from "lenis/react";
-import { useReducedMotion } from "framer-motion";
+import { AnimatePresence, useReducedMotion } from "framer-motion";
 import "lenis/dist/lenis.css";
 import "@/App.css";
 import "@/atelier.css";
@@ -30,6 +30,7 @@ function PublicShell() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const toggleMenu = useCallback(() => setMenuOpen((open) => !open), []);
 
   useEffect(() => {
     document.documentElement.classList.remove("admin-route");
@@ -53,28 +54,32 @@ function PublicShell() {
 
   return (
     <HeaderThemeProvider>
-      <a href="#main" className="skip-link" data-testid="skip-to-content">Skip to content</a>
-      <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
       <Preloader />
-      <Header menuOpen={menuOpen} onToggle={() => setMenuOpen((open) => !open)} />
-      <MobileMenu open={menuOpen} onClose={closeMenu} />
-      <Routes key={location.pathname}>
-        <Route path="/" element={<Home />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/services" element={<Services />} />
-        <Route path="/services/:slug" element={<ServiceDetail />} />
-        <Route path="/projects" element={<Projects />} />
-        <Route path="/projects/:slug" element={<ProjectDetail />} />
-        <Route path="/gallery" element={<Gallery />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/process" element={<Process />} />
-        <Route path="/brochure" element={<Brochure />} />
-        <Route path="/privacy" element={<Privacy />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-      <Footer />
-      <WhatsAppFloat hidden={menuOpen} />
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
+      <div className="public-app-background" data-testid="public-app-background">
+        <a href="#main" className="skip-link" data-testid="skip-to-content">Skip to content</a>
+        <Header menuOpen={menuOpen} onToggle={toggleMenu} />
+        <Routes key={location.pathname}>
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/services" element={<Services />} />
+          <Route path="/services/:slug" element={<ServiceDetail />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/projects/:slug" element={<ProjectDetail />} />
+          <Route path="/gallery" element={<Gallery />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/process" element={<Process />} />
+          <Route path="/brochure" element={<Brochure />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+        <Footer />
+        <WhatsAppFloat hidden={menuOpen} />
+      </div>
+      <AnimatePresence initial={false}>
+        {menuOpen ? <MobileMenu key="mobile-menu" onClose={closeMenu} /> : null}
+      </AnimatePresence>
     </HeaderThemeProvider>
   );
 }

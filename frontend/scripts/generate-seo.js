@@ -32,6 +32,7 @@ const SITE_FILE = path.join(FRONTEND_DIR, "src", "content", "site.js");
 const PROJECTS_FILE = path.join(FRONTEND_DIR, "src", "content", "projects.js");
 const SERVICES_FILE = path.join(FRONTEND_DIR, "src", "content", "services.js");
 const IMAGES_FILE = path.join(FRONTEND_DIR, "src", "content", "images.js");
+const HOME_CONTENT_FILE = path.join(FRONTEND_DIR, "src", "content", "homeContent.js");
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -110,6 +111,32 @@ function readLiteralExport(file, name) {
     throw new Error(
       `Failed to evaluate "${name}" from ${file}. It must contain only literal values ` +
         `(strings, numbers, booleans, null, arrays, objects). Original error: ${error.message}`,
+    );
+  }
+}
+
+/**
+ * Same as readLiteralExport, for an `export const <name> = [ ... ]` array literal.
+ * readLiteralExport anchors on the first "{", which for an array would land on the
+ * first element instead of the array itself.
+ */
+function readLiteralArrayExport(file, name) {
+  const source = fs.readFileSync(file, "utf8");
+  const marker = `export const ${name} =`;
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex === -1) throw new Error(`Could not find "${marker}" in ${file}`);
+
+  const openIndex = source.indexOf("[", markerIndex);
+  if (openIndex === -1) throw new Error(`Could not find the array literal for "${name}" in ${file}`);
+
+  const literal = source.slice(openIndex, matchBracket(source, openIndex) + 1);
+  try {
+    // eslint-disable-next-line no-new-func
+    return new Function(`"use strict"; return (${literal});`)();
+  } catch (error) {
+    throw new Error(
+      `Failed to evaluate "${name}" from ${file}. It must contain only literal values. ` +
+        `Original error: ${error.message}`,
     );
   }
 }
@@ -230,6 +257,10 @@ const titleFor = (route) => {
 
 const projects = readProjects();
 const servicesList = readServices();
+// Long-form homepage copy. Rendered by components/home/LocalGuide.jsx; mirrored here so
+// non-rendering crawlers receive the same text and the same FAQ structured data.
+const homeGuide = readLiteralExport(HOME_CONTENT_FILE, "homeGuide");
+const homeFaqs = readLiteralArrayExport(HOME_CONTENT_FILE, "homeFaqs");
 
 const staticRoutes = config.routes.map((route) => ({
   ...route,
@@ -423,6 +454,20 @@ function graphFor(route) {
     }
   }
 
+  // Mirrors the FAQPage emitted at runtime by pages/Home.jsx for the same questions.
+  if (route.path === "/" && homeFaqs.length) {
+    extra.push({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "@id": `${ORIGIN}/#faq`,
+      mainEntity: homeFaqs.map((faq) => ({
+        "@type": "Question",
+        name: faq.q,
+        acceptedAnswer: { "@type": "Answer", text: faq.a },
+      })),
+    });
+  }
+
   if (route.path === "/services") {
     extra.push({
       "@context": "https://schema.org",
@@ -535,16 +580,53 @@ function bodyFallbackFor(route) {
     }
   }
 
+  // Homepage long-form section, matching components/home/LocalGuide.jsx.
+  if (route.path === "/") {
+    parts.push(`<h2>${escapeHtml((homeGuide.heading || []).join(" "))}</h2>`);
+    if (homeGuide.lede) parts.push(`<p>${escapeHtml(homeGuide.lede)}</p>`);
+    for (const paragraph of homeGuide.paragraphs || []) {
+      parts.push(`<p>${escapeHtml(paragraph)}</p>`);
+    }
+
+    if ((homeGuide.capabilities || []).length) {
+      parts.push(`<h2>${escapeHtml(homeGuide.capabilitiesHeading || "What we design and make")}</h2><ul>`);
+      for (const item of homeGuide.capabilities) {
+        parts.push(
+          `<li><a href="${escapeHtml(item.to)}">${escapeHtml(item.title)}</a> — ${escapeHtml(item.line)}</li>`,
+        );
+      }
+      parts.push("</ul>");
+    }
+
+    parts.push(`<h2>${escapeHtml(homeGuide.areasHeading || "Where we work")}</h2>`);
+    if (homeGuide.areasLede) parts.push(`<p>${escapeHtml(homeGuide.areasLede)}</p>`);
+    parts.push(`<p>${escapeHtml((site.serviceAreas || [site.city]).join(", "))}.</p>`);
+
+    if (homeFaqs.length) {
+      parts.push("<h2>Common questions</h2><dl>");
+      for (const faq of homeFaqs) {
+        parts.push(`<dt>${escapeHtml(faq.q)}</dt><dd>${escapeHtml(faq.a)}</dd>`);
+      }
+      parts.push("</dl>");
+    }
+  }
+
   parts.push(
     `<p>${escapeHtml(site.name)}, ${escapeHtml((site.address.lines || []).join(", "))}. ` +
       `Telephone <a href="tel:${escapeHtml(site.phone.tel)}">${escapeHtml(site.phone.display)}</a>.</p>`,
   );
 
+  // The homepage guide already renders all six service links above. Repeating the
+  // same hrefs in the fallback Explore list adds no navigation value and can read as
+  // crawler-only keyword repetition, so service links are included here only on
+  // routes that do not already emit the capability list.
   const links = [
-    ...servicesList.map((service) => ({
-      href: `/services/${service.slug}`,
-      label: `${service.title} in ${site.city}`,
-    })),
+    ...(route.path === "/"
+      ? []
+      : servicesList.map((service) => ({
+          href: `/services/${service.slug}`,
+          label: `${service.title} in ${site.city}`,
+        }))),
     { href: "/projects", label: "Projects" },
     { href: "/process", label: "Our process" },
     { href: "/about", label: "About the studio" },

@@ -1326,7 +1326,7 @@ export default function InvoiceDetailPage() {
           <DialogFooter className="admin-dialog__footer">
             <button className="admin-button admin-button--ghost" type="button" onClick={closePdfPreview}>Close preview</button>
             {previewUrl ? (
-              <a className="admin-button admin-button--outline" href={previewUrl} target="_blank" rel="noreferrer">
+              <a className="admin-button admin-button--outline" href={previewUrl} target="_blank" rel="noopener noreferrer">
                 <ExternalLink aria-hidden="true" /> Open separately
               </a>
             ) : null}

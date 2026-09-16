@@ -16,9 +16,16 @@ const AdminApp = lazy(() => import("@/admin/AdminApp"));
 
 function RouteLoadingFallback() {
   return (
-    <div className="app-route-loader" role="status" aria-live="polite">
-      <span className="app-route-loader__mark" aria-hidden="true">S</span>
-      <span>Loading workspace…</span>
+    <div className="app-route-loader" role="status" aria-live="polite" aria-label="Loading Suvi Interior">
+      <div className="app-route-loader__frame" aria-hidden="true">
+        <div className="app-route-loader__meta"><span>Nashik</span><span>Design · Make · Install</span></div>
+        <div className="app-route-loader__brand">
+          <span className="app-route-loader__name">suvi.</span>
+          <span className="app-route-loader__caption"><strong>INTERIOR</strong><small>DESIGN &amp; MAKE</small></span>
+        </div>
+        <span className="app-route-loader__line"><span /></span>
+      </div>
+      <span className="sr-only">Loading Suvi Interior…</span>
     </div>
   );
 }
