@@ -106,6 +106,23 @@
   }
   .live{display:inline-flex; align-items:center; gap:.4rem}
   .dot{width:6px; height:6px; border-radius:50%; background:#6FBF95; box-shadow:0 0 0 3px rgba(111,191,149,.22)}
+  .warnpill{border-color:rgba(217,168,92,.5); color:#F0CE94}
+
+  /* status board */
+  .board{
+    background:var(--card); border:1px solid var(--line); border-left:3px solid var(--warn);
+    border-radius:var(--r); padding:.9rem 1rem; margin:0 0 1.5rem; box-shadow:var(--shadow);
+  }
+  .board h2{font-size:1.05rem; margin-bottom:.35rem}
+  .board p{margin:.3rem 0; font-size:.93rem; color:var(--ink-2)}
+  .rows{display:grid; gap:.4rem; margin-top:.7rem}
+  .row{display:flex; align-items:baseline; gap:.55rem; font-size:.88rem}
+  .tag{
+    flex:0 0 auto; font-family:var(--mono); font-size:.62rem; letter-spacing:.06em;
+    padding:.16rem .45rem; border-radius:5px; text-transform:uppercase; font-weight:600;
+  }
+  .tag.pass{background:rgba(47,107,79,.14); color:var(--ok)}
+  .tag.fail{background:rgba(140,43,43,.14); color:var(--danger)}
 
   /* ---------- sections ---------- */
   main{padding:clamp(1.5rem,6vw,2.75rem) 0 3rem}
@@ -253,16 +270,27 @@
   <div class="wrap">
     <p class="eyebrow">Launch &amp; operations</p>
     <h1>suviinterior.com</h1>
-    <p class="lede">Code is live and deploying automatically. What's left is account setup only you can do.</p>
+    <p class="lede">The app is built, deployed and healthy. The domain is the one thing still pointing at the wrong place.</p>
     <div class="pills">
-      <span class="pill live"><span class="dot"></span> Auto-deploy on push to main</span>
-      <span class="pill">h000zcom-cloud/main-suvi-interior</span>
-      <span class="pill">₹0 hosting</span>
+      <span class="pill live"><span class="dot"></span> Live at suvi.2up.in</span>
+      <span class="pill warnpill">suviinterior.com still parked</span>
+      <span class="pill">Auto-deploy on push to main</span>
     </div>
   </div>
 </header>
 
 <main class="wrap">
+
+  <div class="board">
+    <h2>Where things actually stand</h2>
+    <p>Checked live just now. Every route works on the Vercel URL. The custom domain is still on a Namecheap parking page from July.</p>
+    <div class="rows">
+      <div class="row"><span class="tag pass">pass</span><span><code>suvi.2up.in</code> — homepage, API, sitemap, llms.txt, admin login, service pages all 200</span></div>
+      <div class="row"><span class="tag fail">fail</span><span><code>www.suviinterior.com</code> — Namecheap parking page, every other path 404s</span></div>
+      <div class="row"><span class="tag fail">fail</span><span><code>suviinterior.com</code> — apex points to Namecheap, not Vercel</span></div>
+    </div>
+    <p><b>So: step 05 is the only thing standing between you and a live site.</b></p>
+  </div>
 
   <p class="phase">Do these now</p>
 
@@ -360,56 +388,77 @@
       <span class="chev" aria-hidden="true"></span>
     </summary>
     <div class="body">
+      <p>Already checked on <code>suvi.2up.in</code> — all passing. Re-run these after the domain switch.</p>
       <div class="tw">
         <table>
-          <thead><tr><th>Path</th><th>Expect</th></tr></thead>
+          <thead><tr><th>Path</th><th>Expect</th><th>Checked</th></tr></thead>
           <tbody>
-            <tr><td><code>/</code></td><td>Homepage, header, hero, footer</td></tr>
-            <tr><td><code>/api/health</code></td><td>Small JSON response</td></tr>
-            <tr><td><code>/services/modular-kitchens</code></td><td>Full page — proves routing</td></tr>
-            <tr><td><code>/sitemap.xml</code></td><td>24 URLs on suviinterior.com</td></tr>
-            <tr><td><code>/llms.txt</code></td><td>Studio summary</td></tr>
-            <tr><td><code>/admin/login</code></td><td>Sign-in screen</td></tr>
+            <tr><td><code>/</code></td><td>Homepage, header, hero, footer</td><td>200 · 19.6 KB</td></tr>
+            <tr><td><code>/api/health</code></td><td>Small JSON response</td><td>200 · 41 B</td></tr>
+            <tr><td><code>/services/modular-kitchens</code></td><td>Full page — proves routing</td><td>200 · 14.9 KB</td></tr>
+            <tr><td><code>/sitemap.xml</code></td><td>URLs on suviinterior.com</td><td>200 · 4.3 KB</td></tr>
+            <tr><td><code>/llms.txt</code></td><td>Studio summary</td><td>200 · 5.5 KB</td></tr>
+            <tr><td><code>/admin/login</code></td><td>Sign-in screen</td><td>200</td></tr>
           </tbody>
         </table>
       </div>
       <div class="note"><b>First load may lag</b><p>The API sleeps when idle. Only the first visitor after a quiet spell waits.</p></div>
       <div class="ckl">
-        <label class="ck"><input type="checkbox" id="c4a"><span>Website loads</span></label>
-        <label class="ck"><input type="checkbox" id="c4b"><span>API responds</span></label>
-        <label class="ck"><input type="checkbox" id="c4c"><span>Admin login appears</span></label>
+        <label class="ck"><input type="checkbox" id="c4a"><span>Re-checked on the real domain after step 05</span></label>
+        <label class="ck"><input type="checkbox" id="c4b"><span>Admin login reachable on the real domain</span></label>
       </div>
     </div>
   </details>
 
-  <details class="step" id="s5">
+  <details class="step" id="s5" open>
     <summary>
       <span class="num">05</span>
       <span class="sum">
-        <span class="st">Point the domain</span>
-        <span class="meta">15 min + DNS wait · <b class="who">You</b></span>
+        <span class="st">Point the domain off Namecheap parking</span>
+        <span class="meta">15 min + DNS wait · blocks launch · <b class="who">You</b></span>
       </span>
       <span class="chev" aria-hidden="true"></span>
     </summary>
     <div class="body">
-      <p><b>Settings → Domains</b>: add the apex, then <code>www</code> redirecting to it. Trust Vercel's records over this table.</p>
+      <div class="note danger">
+        <b>This is what's blocking launch</b>
+        <p>The domain is at <b>Namecheap</b>, not Hostinger. <code>www</code> currently points to Namecheap's parking page and the apex points to a Namecheap IP. Nothing reaches Vercel.</p>
+      </div>
+
+      <p>What is there right now:</p>
       <div class="tw">
         <table>
-          <thead><tr><th>Type</th><th>Name</th><th>Value</th></tr></thead>
+          <thead><tr><th>Name</th><th>Currently</th><th>Action</th></tr></thead>
           <tbody>
-            <tr><td><code>A</code></td><td><code>@</code></td><td><code>76.76.21.21</code></td></tr>
-            <tr><td><code>CNAME</code></td><td><code>www</code></td><td><code>cname.vercel-dns.com</code></td></tr>
+            <tr><td><code>@</code></td><td>A → <code>192.64.119.131</code></td><td>Replace</td></tr>
+            <tr><td><code>www</code></td><td>CNAME → <code>parkingpage.namecheap.com</code></td><td>Delete</td></tr>
           </tbody>
         </table>
       </div>
+
+      <h3>Steps</h3>
+      <ol class="tight">
+        <li>Vercel → <b>Settings → Domains</b> → add <code>suviinterior.com</code>, then <code>www.suviinterior.com</code> set to redirect to the apex.</li>
+        <li>Vercel then shows the exact records for <em>this</em> project. <b>Copy those values.</b></li>
+        <li>Namecheap → <b>Domain List → Manage → Advanced DNS</b>. Switch the nameservers off parking if it is on <b>Namecheap BasicDNS</b> parking mode.</li>
+        <li>Delete the two records above, add Vercel's.</li>
+        <li>Wait for Vercel to show <b>Valid Configuration</b>. HTTPS is issued automatically.</li>
+      </ol>
+
       <div class="note warn">
-        <b>Delete conflicting records</b>
-        <p>Remove old <code>A</code>/<code>CNAME</code> on <code>@</code> and <code>www</code>. Do not touch <code>MX</code> or email breaks. HTTPS is issued automatically.</p>
+        <b>Do not copy DNS values from tutorials</b>
+        <p>The widely-quoted <code>76.76.21.21</code> and <code>cname.vercel-dns.com</code> are legacy. This project is on newer infrastructure — its live target is <code>fe17aa1b33705ce2.vercel-dns-017.com</code>. Use only what your Vercel panel shows.</p>
       </div>
+      <div class="note warn">
+        <b>Leave MX alone</b>
+        <p>Touching <code>MX</code> records breaks email. Only change <code>@</code> and <code>www</code>.</p>
+      </div>
+
       <div class="ckl">
-        <label class="ck"><input type="checkbox" id="c5a"><span>Apex verified in Vercel</span></label>
-        <label class="ck"><input type="checkbox" id="c5b"><span><code>www</code> redirects to apex</span></label>
-        <label class="ck"><input type="checkbox" id="c5c"><span>Loads with a padlock</span></label>
+        <label class="ck"><input type="checkbox" id="c5a"><span>Both domains added in Vercel</span></label>
+        <label class="ck"><input type="checkbox" id="c5b"><span>Namecheap parking records deleted</span></label>
+        <label class="ck"><input type="checkbox" id="c5c"><span>Vercel shows <b>Valid Configuration</b></span></label>
+        <label class="ck"><input type="checkbox" id="c5d"><span>Site loads with a padlock on the real domain</span></label>
       </div>
     </div>
   </details>
@@ -424,7 +473,7 @@
       <span class="chev" aria-hidden="true"></span>
     </summary>
     <div class="body">
-      <p>Sign in at <code>/admin/login</code>, then finish <b>Business settings</b> before creating anything.</p>
+      <p>Sign in at <a href="https://suvi.2up.in/admin/login" target="_blank" rel="noopener">suvi.2up.in/admin/login</a> — this works today, no need to wait for the domain. Finish <b>Business settings</b> before creating anything.</p>
       <div class="note danger">
         <b>Nothing legal was pre-filled</b>
         <p>GSTIN, PAN, bank details and tax rates are empty by design. Enter them from the actual registration documents.</p>
@@ -629,6 +678,8 @@ npm.cmd start</code></pre>
             <tr><td>Cannot issue invoice</td><td>GST mode not chosen</td><td>Pick a mode in Business settings</td></tr>
             <tr><td>Slow first load</td><td>Serverless cold start</td><td>Expected</td></tr>
             <tr><td>Push does not deploy</td><td>Wrong repo</td><td>Remote must be <code>main-suvi-interior</code></td></tr>
+            <tr><td>Domain shows an old page</td><td>Namecheap parking still active</td><td>Step 05 — delete the parking records</td></tr>
+            <tr><td>Domain 404s on every path but <code>/</code></td><td>Not served by Vercel at all</td><td>Check <code>server:</code> header — Vercel sends <code>x-vercel-id</code></td></tr>
           </tbody>
         </table>
       </div>
