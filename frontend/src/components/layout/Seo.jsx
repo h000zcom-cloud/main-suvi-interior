@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { site } from "@/content/site";
+import { imgUrl } from "@/lib/images";
 
 // NOTE: keep the per-route title/description strings here in sync with
 // frontend/seo/routes.json, which the build-time generator uses to write the same
@@ -13,8 +14,21 @@ const ORIGIN = String(site.url || "").replace(/\/+$/, "");
 
 const absolute = (pathOrUrl) => {
   if (!pathOrUrl) return "";
-  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
-  return `${ORIGIN}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+  // Coerce defensively: a non-string here used to throw and take down the whole route.
+  const value = typeof pathOrUrl === "string" ? pathOrUrl : String(pathOrUrl);
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  return `${ORIGIN}${value.startsWith("/") ? "" : "/"}${value}`;
+};
+
+// The `image` prop may be a URL string or a content image object ({ src } or { id }),
+// because content modules describe images as objects for the <Picture> pipeline.
+const imageSource = (image) => {
+  if (!image) return "";
+  if (typeof image === "string") return image;
+  if (typeof image !== "object") return "";
+  const resolved = imgUrl(image, 1200);
+  return typeof resolved === "string" ? resolved : "";
 };
 
 const setMeta = (attr, key, content) => {
@@ -130,7 +144,8 @@ const website = () => ({
   publisher: { "@id": `${ORIGIN}/#organization` },
 });
 
-const webPage = (url, title, description, image) => ({
+// `imageUrl` arrives already resolved and absolute.
+const webPage = (url, title, description, imageUrl) => ({
   "@context": "https://schema.org",
   "@type": "WebPage",
   "@id": `${url}#webpage`,
@@ -140,7 +155,7 @@ const webPage = (url, title, description, image) => ({
   inLanguage: "en-IN",
   isPartOf: { "@id": `${ORIGIN}/#website` },
   about: { "@id": `${ORIGIN}/#business` },
-  ...(image ? { primaryImageOfPage: { "@type": "ImageObject", url: absolute(image) } } : {}),
+  ...(imageUrl ? { primaryImageOfPage: { "@type": "ImageObject", url: imageUrl } } : {}),
 });
 
 export const breadcrumbs = (origin, items) => ({
@@ -170,7 +185,7 @@ export const Seo = ({
     // Skip the brand suffix when the page title already names the studio.
     const fullTitle = title ? (title.includes(site.name) ? title : `${title} | ${site.name}`) : DEFAULT_TITLE;
     const url = absolute(path);
-    const imageUrl = absolute(image);
+    const imageUrl = absolute(imageSource(image));
 
     document.title = fullTitle;
     setMeta("name", "description", description);
@@ -203,7 +218,7 @@ export const Seo = ({
       organization(),
       localBusiness(),
       website(),
-      webPage(url, fullTitle, description, image),
+      webPage(url, fullTitle, description, imageUrl),
       ...(crumbs ? [breadcrumbs(ORIGIN, crumbs)] : []),
       ...jsonLd,
     ];
